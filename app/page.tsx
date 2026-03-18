@@ -1,7 +1,6 @@
-// app/page.tsx
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -11,50 +10,30 @@ import { isLoggedIn } from '@/lib/auth'
 import type { Ride, Seek, LatLng } from '@/types'
 import { format } from 'date-fns'
 
-// dynamic import — Leaflet cannot run on server
 const MapPicker = dynamic(
   () => import('@/components/map/MapPicker'),
-  { ssr: false, loading: () => <MapSkeleton height="420px" /> }
-)
-const MapView = dynamic(
-  () => import('@/components/map/MapView'),
   { ssr: false, loading: () => <MapSkeleton height="420px" /> }
 )
 
 type Tab = 'rides' | 'seeks'
 
 export default function HomePage() {
-  const [origin,      setOrigin]      = useState<LatLng | null>(null)
-  const [destination, setDestination] = useState<LatLng | null>(null)
-  const [rides,       setRides]       = useState<Ride[]>([])
-  const [seeks,       setSeeks]       = useState<Seek[]>([])
-  const [tab,         setTab]         = useState<Tab>('rides')
-  const [loading,     setLoading]     = useState(false)
-  const [searched,    setSearched]    = useState(false)
+  const [rides,        setRides]        = useState<Ride[]>([])
+  const [seeks,        setSeeks]        = useState<Seek[]>([])
+  const [tab,          setTab]          = useState<Tab>('rides')
+  const [loading,      setLoading]      = useState(false)
+  const [searched,     setSearched]     = useState(false)
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null)
   const [selectedSeek, setSelectedSeek] = useState<Seek | null>(null)
-  const [loggedIn,    setLoggedIn]    = useState(false)
+  const [loggedIn,     setLoggedIn]     = useState(false)
+
+  const searchRef = useRef<(o: LatLng, d: LatLng) => void>(null)
 
   useEffect(() => {
     setLoggedIn(isLoggedIn())
   }, [])
 
-  const handleMapChange = useCallback((
-    o: LatLng | null,
-    d: LatLng | null
-  ) => {
-    setOrigin(o)
-    setDestination(d)
-    setSelectedRide(null)
-    setSelectedSeek(null)
-
-    // auto-search once both points are set
-    if (o && d) {
-      search(o, d)
-    }
-  }, [])
-
-  const search = async (o: LatLng, d: LatLng) => {
+  const search = useCallback(async (o: LatLng, d: LatLng) => {
     setLoading(true)
     setSearched(true)
     try {
@@ -78,11 +57,24 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    searchRef.current = search
+  }, [search])
+
+  const handleMapChange = useCallback((
+    o: LatLng | null,
+    d: LatLng | null
+  ) => {
+    setSelectedRide(null)
+    setSelectedSeek(null)
+    if (o && d) {
+      searchRef.current?.(o, d)
+    }
+  }, [])
 
   const reset = () => {
-    setOrigin(null)
-    setDestination(null)
     setRides([])
     setSeeks([])
     setSearched(false)
@@ -115,46 +107,24 @@ export default function HomePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* left panel — map */}
+        {/* left — map always visible, never toggled */}
         <div className="lg:col-span-2">
-          {!searched ? (
-            <MapPicker
-              origin={origin}
-              destination={destination}
-              onChange={handleMapChange}
-              height="420px"
-            />
-          ) : (
-            <div className="space-y-2">
-              <MapView
-                rides={tab === 'rides' ? rides : []}
-                seeks={tab === 'seeks' ? seeks : []}
-                height="420px"
-                onRideClick={setSelectedRide}
-                onSeekClick={setSelectedSeek}
-                centerLat={origin?.lat}
-                centerLng={origin?.lng}
-              />
-              <button
-                onClick={reset}
-                className="text-xs text-slate-400 hover:text-slate-600 underline"
-              >
-                Search a different route
-              </button>
-            </div>
-          )}
+          <MapPicker
+            onChange={handleMapChange}
+            height="420px"
+          />
         </div>
 
-        {/* right panel — results */}
+        {/* right — results panel */}
         <div className="lg:col-span-1">
-
           {!searched ? (
-            <div className="bg-white border rounded-xl p-6 text-center">
+            <div className="bg-white border rounded-xl p-6 text-center h-full
+              flex flex-col items-center justify-center min-h-[200px]">
               <p className="text-slate-400 text-sm mb-4">
                 Click two points on the map to find rides and seekers near your route
               </p>
               {!loggedIn && (
-                <div className="space-y-2">
+                <div className="space-y-2 w-full">
                   <Link href="/auth/register" className="block">
                     <Button className="w-full" size="sm">Sign up to post</Button>
                   </Link>
@@ -191,6 +161,16 @@ export default function HomePage() {
                 </button>
               </div>
 
+              {/* search again button */}
+              <div className="px-4 pt-3">
+                <button
+                  onClick={reset}
+                  className="text-xs text-slate-400 hover:text-slate-600 underline"
+                >
+                  Click map to search a different route
+                </button>
+              </div>
+
               {/* loading */}
               {loading && (
                 <div className="p-4 space-y-3">
@@ -203,12 +183,12 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* rides list */}
+              {/* rides */}
               {!loading && tab === 'rides' && (
-                <div className="divide-y max-h-90 overflow-y-auto">
+                <div className="divide-y max-h-[340px] overflow-y-auto">
                   {rides.length === 0 ? (
                     <EmptyResults
-                      message="No rides found near this route"
+                      message="No rides near this route"
                       action={loggedIn
                         ? { label: 'Offer a ride', href: '/rides/new' }
                         : undefined
@@ -230,12 +210,12 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* seeks list */}
+              {/* seeks */}
               {!loading && tab === 'seeks' && (
-                <div className="divide-y max-h-90 overflow-y-auto">
+                <div className="divide-y max-h-[340px] overflow-y-auto">
                   {seeks.length === 0 ? (
                     <EmptyResults
-                      message="No seekers found near this route"
+                      message="No seekers near this route"
                       action={loggedIn
                         ? { label: 'Post your need', href: '/seeks/new' }
                         : undefined
@@ -261,7 +241,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* selected ride detail panel */}
+      {/* selected ride detail */}
       {selectedRide && (
         <div className="mt-4 bg-white border rounded-xl p-5">
           <div className="flex items-start justify-between gap-4">
@@ -297,8 +277,7 @@ export default function HomePage() {
                 <span>
                   {selectedRide.driver_avg_rating > 0
                     ? selectedRide.driver_avg_rating.toFixed(1)
-                    : 'New'
-                  }
+                    : 'New'}
                 </span>
               </div>
               {selectedRide.notes && (
@@ -329,7 +308,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* selected seek detail panel */}
+      {/* selected seek detail */}
       {selectedSeek && (
         <div className="mt-4 bg-white border rounded-xl p-5">
           <div className="flex items-start justify-between gap-4">
@@ -341,7 +320,9 @@ export default function HomePage() {
                 <Badge variant="outline">{selectedSeek.status}</Badge>
               </div>
               <div className="flex flex-wrap gap-3 text-sm text-slate-500 mb-3">
-                <span>Needs {selectedSeek.seats_needed} seat{selectedSeek.seats_needed !== 1 ? 's' : ''}</span>
+                <span>
+                  Needs {selectedSeek.seats_needed} seat{selectedSeek.seats_needed !== 1 ? 's' : ''}
+                </span>
                 <span>·</span>
                 <span>
                   Expires {format(new Date(selectedSeek.expires_at), 'hh:mm a')}
@@ -357,20 +338,17 @@ export default function HomePage() {
                 <span>
                   {selectedSeek.seeker_avg_rating > 0
                     ? selectedSeek.seeker_avg_rating.toFixed(1)
-                    : 'New'
-                  }
+                    : 'New'}
                 </span>
               </div>
             </div>
-            <div className="shrink-0">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelectedSeek(null)}
-              >
-                ✕
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelectedSeek(null)}
+            >
+              ✕
+            </Button>
           </div>
         </div>
       )}
@@ -379,15 +357,8 @@ export default function HomePage() {
   )
 }
 
-// ── sub components ───────────────────────────────────────────
-
-function RideResult({
-  ride, selected, onClick, loggedIn
-}: {
-  ride: Ride
-  selected: boolean
-  onClick: () => void
-  loggedIn: boolean
+function RideResult({ ride, selected, onClick, loggedIn }: {
+  ride: Ride; selected: boolean; onClick: () => void; loggedIn: boolean
 }) {
   return (
     <div
@@ -419,8 +390,7 @@ function RideResult({
             <span className="text-xs text-slate-500">
               {ride.driver_avg_rating > 0
                 ? ride.driver_avg_rating.toFixed(1)
-                : 'New'
-              }
+                : 'New'}
             </span>
           </div>
         </div>
@@ -429,12 +399,8 @@ function RideResult({
   )
 }
 
-function SeekResult({
-  seek, selected, onClick
-}: {
-  seek: Seek
-  selected: boolean
-  onClick: () => void
+function SeekResult({ seek, selected, onClick }: {
+  seek: Seek; selected: boolean; onClick: () => void
 }) {
   return (
     <div
@@ -453,7 +419,9 @@ function SeekResult({
             {seek.dest_label}
           </p>
           <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-            <span>Needs {seek.seats_needed} seat{seek.seats_needed !== 1 ? 's' : ''}</span>
+            <span>
+              Needs {seek.seats_needed} seat{seek.seats_needed !== 1 ? 's' : ''}
+            </span>
             <span>·</span>
             <span>{seek.seeker_name}</span>
           </div>
@@ -464,8 +432,7 @@ function SeekResult({
             <span className="text-xs text-slate-500">
               {seek.seeker_avg_rating > 0
                 ? seek.seeker_avg_rating.toFixed(1)
-                : 'New'
-              }
+                : 'New'}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-1">
@@ -477,10 +444,7 @@ function SeekResult({
   )
 }
 
-function EmptyResults({
-  message,
-  action,
-}: {
+function EmptyResults({ message, action }: {
   message: string
   action?: { label: string; href: string }
 }) {
