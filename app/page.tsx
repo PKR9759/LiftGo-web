@@ -205,7 +205,7 @@ export default function HomePage() {
 
               {/* rides list */}
               {!loading && tab === 'rides' && (
-                <div className="divide-y max-h-[360px] overflow-y-auto">
+                <div className="divide-y max-h-90 overflow-y-auto">
                   {rides.length === 0 ? (
                     <EmptyResults
                       message="No rides found near this route"
@@ -232,7 +232,7 @@ export default function HomePage() {
 
               {/* seeks list */}
               {!loading && tab === 'seeks' && (
-                <div className="divide-y max-h-[360px] overflow-y-auto">
+                <div className="divide-y max-h-90 overflow-y-auto">
                   {seeks.length === 0 ? (
                     <EmptyResults
                       message="No seekers found near this route"
