@@ -6,13 +6,13 @@ import { useEffect, useRef } from 'react'
 import type { Ride, Seek } from '@/types'
 
 interface Props {
-  rides?:        Ride[]
-  seeks?:        Seek[]
-  height?:       string
-  onRideClick?:  (ride: Ride) => void
-  onSeekClick?:  (seek: Seek) => void
-  centerLat?:    number
-  centerLng?:    number
+  rides?:       Ride[]
+  seeks?:       Seek[]
+  height?:      string
+  onRideClick?: (ride: Ride) => void
+  onSeekClick?: (seek: Seek) => void
+  centerLat?:   number
+  centerLng?:   number
 }
 
 export default function MapView({
@@ -26,17 +26,21 @@ export default function MapView({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<any>(null)
-  const markersRef   = useRef<any[]>([])
-  const linesRef     = useRef<any[]>([])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (mapRef.current) return
     if (!containerRef.current) return
+    if ((containerRef.current as any)._leaflet_id) return
+    if (mapRef.current) return
+
+    let cancelled = false
 
     const init = async () => {
       const L = (await import('leaflet')).default
       const { fixLeafletIcons, makeIcon } = await import('@/lib/leaflet-fix')
+
+      if (cancelled) return
+      if ((containerRef.current as any)?._leaflet_id) return
 
       fixLeafletIcons()
 
@@ -52,13 +56,13 @@ export default function MapView({
 
       mapRef.current = map
 
-      // plot rides as blue lines + green origin marker
+      const allPoints: [number, number][] = []
+
       rides.forEach(ride => {
-        const line = L.polyline(
-          [
-            [ride.origin_lat, ride.origin_lng],
-            [ride.dest_lat,   ride.dest_lng],
-          ],
+        if (cancelled) return
+
+        L.polyline(
+          [[ride.origin_lat, ride.origin_lng], [ride.dest_lat, ride.dest_lng]],
           { color: '#3b82f6', weight: 3, dashArray: '6 4' }
         ).addTo(map)
 
@@ -73,21 +77,17 @@ export default function MapView({
           `)
           .addTo(map)
 
-        if (onRideClick) {
-          marker.on('click', () => onRideClick(ride))
-        }
+        if (onRideClick) marker.on('click', () => onRideClick(ride))
 
-        markersRef.current.push(marker)
-        linesRef.current.push(line)
+        allPoints.push([ride.origin_lat, ride.origin_lng])
+        allPoints.push([ride.dest_lat,   ride.dest_lng])
       })
 
-      // plot seeks as orange markers
       seeks.forEach(seek => {
-        const line = L.polyline(
-          [
-            [seek.origin_lat, seek.origin_lng],
-            [seek.dest_lat,   seek.dest_lng],
-          ],
+        if (cancelled) return
+
+        L.polyline(
+          [[seek.origin_lat, seek.origin_lng], [seek.dest_lat, seek.dest_lng]],
           { color: '#f97316', weight: 2, dashArray: '4 4' }
         ).addTo(map)
 
@@ -102,27 +102,13 @@ export default function MapView({
           `)
           .addTo(map)
 
-        if (onSeekClick) {
-          marker.on('click', () => onSeekClick(seek))
-        }
+        if (onSeekClick) marker.on('click', () => onSeekClick(seek))
 
-        markersRef.current.push(marker)
-        linesRef.current.push(line)
+        allPoints.push([seek.origin_lat, seek.origin_lng])
+        allPoints.push([seek.dest_lat,   seek.dest_lng])
       })
 
-      // fit map to all markers if any exist
-      const allPoints: [number, number][] = [
-        ...rides.flatMap(r => [
-          [r.origin_lat, r.origin_lng] as [number, number],
-          [r.dest_lat,   r.dest_lng]   as [number, number],
-        ]),
-        ...seeks.flatMap(s => [
-          [s.origin_lat, s.origin_lng] as [number, number],
-          [s.dest_lat,   s.dest_lng]   as [number, number],
-        ]),
-      ]
-
-      if (allPoints.length > 0) {
+      if (allPoints.length > 0 && !cancelled) {
         map.fitBounds(allPoints, { padding: [40, 40] })
       }
     }
@@ -130,14 +116,13 @@ export default function MapView({
     init()
 
     return () => {
+      cancelled = true
       if (mapRef.current) {
         mapRef.current.remove()
-        mapRef.current   = null
-        markersRef.current = []
-        linesRef.current   = []
+        mapRef.current = null
       }
     }
-  }, [rides, seeks])
+  }, [])
 
   return (
     <div

@@ -1,65 +1,506 @@
-import Image from "next/image";
+// app/page.tsx
+'use client'
 
-export default function Home() {
+import { useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { getNearbyRides, getNearbySeeks } from '@/lib/api'
+import { isLoggedIn } from '@/lib/auth'
+import type { Ride, Seek, LatLng } from '@/types'
+import { format } from 'date-fns'
+
+// dynamic import — Leaflet cannot run on server
+const MapPicker = dynamic(
+  () => import('@/components/map/MapPicker'),
+  { ssr: false, loading: () => <MapSkeleton height="420px" /> }
+)
+const MapView = dynamic(
+  () => import('@/components/map/MapView'),
+  { ssr: false, loading: () => <MapSkeleton height="420px" /> }
+)
+
+type Tab = 'rides' | 'seeks'
+
+export default function HomePage() {
+  const [origin,      setOrigin]      = useState<LatLng | null>(null)
+  const [destination, setDestination] = useState<LatLng | null>(null)
+  const [rides,       setRides]       = useState<Ride[]>([])
+  const [seeks,       setSeeks]       = useState<Seek[]>([])
+  const [tab,         setTab]         = useState<Tab>('rides')
+  const [loading,     setLoading]     = useState(false)
+  const [searched,    setSearched]    = useState(false)
+  const [selectedRide, setSelectedRide] = useState<Ride | null>(null)
+  const [selectedSeek, setSelectedSeek] = useState<Seek | null>(null)
+  const [loggedIn,    setLoggedIn]    = useState(false)
+
+  useEffect(() => {
+    setLoggedIn(isLoggedIn())
+  }, [])
+
+  const handleMapChange = useCallback((
+    o: LatLng | null,
+    d: LatLng | null
+  ) => {
+    setOrigin(o)
+    setDestination(d)
+    setSelectedRide(null)
+    setSelectedSeek(null)
+
+    // auto-search once both points are set
+    if (o && d) {
+      search(o, d)
+    }
+  }, [])
+
+  const search = async (o: LatLng, d: LatLng) => {
+    setLoading(true)
+    setSearched(true)
+    try {
+      const [ridesRes, seeksRes] = await Promise.all([
+        getNearbyRides({
+          origin_lat: o.lat, origin_lng: o.lng,
+          dest_lat:   d.lat, dest_lng:   d.lng,
+          radius: 3000,
+        }),
+        getNearbySeeks({
+          origin_lat: o.lat, origin_lng: o.lng,
+          dest_lat:   d.lat, dest_lng:   d.lng,
+          radius: 3000,
+        }),
+      ])
+      setRides(ridesRes.data)
+      setSeeks(seeksRes.data)
+    } catch {
+      setRides([])
+      setSeeks([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const reset = () => {
+    setOrigin(null)
+    setDestination(null)
+    setRides([])
+    setSeeks([])
+    setSearched(false)
+    setSelectedRide(null)
+    setSelectedSeek(null)
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="max-w-6xl mx-auto px-4 py-6">
+
+      {/* header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Live ride board</h1>
+          <p className="text-slate-500 text-sm mt-1">
+            Click your origin then destination to find matches
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        {loggedIn && (
+          <div className="flex gap-2">
+            <Link href="/rides/new">
+              <Button size="sm">+ Offer ride</Button>
+            </Link>
+            <Link href="/seeks/new">
+              <Button size="sm" variant="outline">+ Need ride</Button>
+            </Link>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* left panel — map */}
+        <div className="lg:col-span-2">
+          {!searched ? (
+            <MapPicker
+              origin={origin}
+              destination={destination}
+              onChange={handleMapChange}
+              height="420px"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          ) : (
+            <div className="space-y-2">
+              <MapView
+                rides={tab === 'rides' ? rides : []}
+                seeks={tab === 'seeks' ? seeks : []}
+                height="420px"
+                onRideClick={setSelectedRide}
+                onSeekClick={setSelectedSeek}
+                centerLat={origin?.lat}
+                centerLng={origin?.lng}
+              />
+              <button
+                onClick={reset}
+                className="text-xs text-slate-400 hover:text-slate-600 underline"
+              >
+                Search a different route
+              </button>
+            </div>
+          )}
         </div>
-      </main>
+
+        {/* right panel — results */}
+        <div className="lg:col-span-1">
+
+          {!searched ? (
+            <div className="bg-white border rounded-xl p-6 text-center">
+              <p className="text-slate-400 text-sm mb-4">
+                Click two points on the map to find rides and seekers near your route
+              </p>
+              {!loggedIn && (
+                <div className="space-y-2">
+                  <Link href="/auth/register" className="block">
+                    <Button className="w-full" size="sm">Sign up to post</Button>
+                  </Link>
+                  <Link href="/auth/login" className="block">
+                    <Button variant="ghost" className="w-full" size="sm">Log in</Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white border rounded-xl overflow-hidden">
+
+              {/* tabs */}
+              <div className="flex border-b">
+                <button
+                  onClick={() => { setTab('rides'); setSelectedRide(null) }}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    tab === 'rides'
+                      ? 'text-slate-900 border-b-2 border-slate-900'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  Rides ({rides.length})
+                </button>
+                <button
+                  onClick={() => { setTab('seeks'); setSelectedSeek(null) }}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    tab === 'seeks'
+                      ? 'text-slate-900 border-b-2 border-slate-900'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  Seekers ({seeks.length})
+                </button>
+              </div>
+
+              {/* loading */}
+              {loading && (
+                <div className="p-4 space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-3 bg-slate-100 rounded w-2/3 mb-2" />
+                      <div className="h-3 bg-slate-100 rounded w-1/2" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* rides list */}
+              {!loading && tab === 'rides' && (
+                <div className="divide-y max-h-[360px] overflow-y-auto">
+                  {rides.length === 0 ? (
+                    <EmptyResults
+                      message="No rides found near this route"
+                      action={loggedIn
+                        ? { label: 'Offer a ride', href: '/rides/new' }
+                        : undefined
+                      }
+                    />
+                  ) : (
+                    rides.map(ride => (
+                      <RideResult
+                        key={ride.id}
+                        ride={ride}
+                        selected={selectedRide?.id === ride.id}
+                        onClick={() => setSelectedRide(
+                          selectedRide?.id === ride.id ? null : ride
+                        )}
+                        loggedIn={loggedIn}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* seeks list */}
+              {!loading && tab === 'seeks' && (
+                <div className="divide-y max-h-[360px] overflow-y-auto">
+                  {seeks.length === 0 ? (
+                    <EmptyResults
+                      message="No seekers found near this route"
+                      action={loggedIn
+                        ? { label: 'Post your need', href: '/seeks/new' }
+                        : undefined
+                      }
+                    />
+                  ) : (
+                    seeks.map(seek => (
+                      <SeekResult
+                        key={seek.id}
+                        seek={seek}
+                        selected={selectedSeek?.id === seek.id}
+                        onClick={() => setSelectedSeek(
+                          selectedSeek?.id === seek.id ? null : seek
+                        )}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
+
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* selected ride detail panel */}
+      {selectedRide && (
+        <div className="mt-4 bg-white border rounded-xl p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="font-semibold text-slate-900">
+                  {selectedRide.origin_label} → {selectedRide.dest_label}
+                </h2>
+                <Badge variant={
+                  selectedRide.status === 'active' ? 'default' : 'secondary'
+                }>
+                  {selectedRide.status}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap gap-3 text-sm text-slate-500 mb-3">
+                <span>
+                  {format(new Date(selectedRide.departure_at), 'dd MMM · hh:mm a')}
+                </span>
+                <span>·</span>
+                <span>{selectedRide.available_seats} seats left</span>
+                <span>·</span>
+                <span className="font-medium text-slate-900">
+                  ₹{selectedRide.price_per_seat}/seat
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center
+                  justify-center text-xs font-medium">
+                  {selectedRide.driver_name?.charAt(0).toUpperCase()}
+                </div>
+                <span>{selectedRide.driver_name}</span>
+                <span className="text-yellow-400">★</span>
+                <span>
+                  {selectedRide.driver_avg_rating > 0
+                    ? selectedRide.driver_avg_rating.toFixed(1)
+                    : 'New'
+                  }
+                </span>
+              </div>
+              {selectedRide.notes && (
+                <p className="text-xs text-slate-400 mt-2 italic">
+                  "{selectedRide.notes}"
+                </p>
+              )}
+            </div>
+            <div className="shrink-0 flex gap-2">
+              {loggedIn ? (
+                <Link href={`/rides/${selectedRide.id}`}>
+                  <Button size="sm">Book seat</Button>
+                </Link>
+              ) : (
+                <Link href="/auth/login">
+                  <Button size="sm">Log in to book</Button>
+                </Link>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedRide(null)}
+              >
+                ✕
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* selected seek detail panel */}
+      {selectedSeek && (
+        <div className="mt-4 bg-white border rounded-xl p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="font-semibold text-slate-900">
+                  {selectedSeek.origin_label} → {selectedSeek.dest_label}
+                </h2>
+                <Badge variant="outline">{selectedSeek.status}</Badge>
+              </div>
+              <div className="flex flex-wrap gap-3 text-sm text-slate-500 mb-3">
+                <span>Needs {selectedSeek.seats_needed} seat{selectedSeek.seats_needed !== 1 ? 's' : ''}</span>
+                <span>·</span>
+                <span>
+                  Expires {format(new Date(selectedSeek.expires_at), 'hh:mm a')}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center
+                  justify-center text-xs font-medium">
+                  {selectedSeek.seeker_name?.charAt(0).toUpperCase()}
+                </div>
+                <span>{selectedSeek.seeker_name}</span>
+                <span className="text-yellow-400">★</span>
+                <span>
+                  {selectedSeek.seeker_avg_rating > 0
+                    ? selectedSeek.seeker_avg_rating.toFixed(1)
+                    : 'New'
+                  }
+                </span>
+              </div>
+            </div>
+            <div className="shrink-0">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedSeek(null)}
+              >
+                ✕
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
-  );
+  )
+}
+
+// ── sub components ───────────────────────────────────────────
+
+function RideResult({
+  ride, selected, onClick, loggedIn
+}: {
+  ride: Ride
+  selected: boolean
+  onClick: () => void
+  loggedIn: boolean
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className={`p-4 cursor-pointer transition-colors ${
+        selected ? 'bg-blue-50' : 'hover:bg-slate-50'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-900 truncate">
+            {ride.origin_label}
+          </p>
+          <p className="text-xs text-slate-400 mb-1">↓</p>
+          <p className="text-sm font-medium text-slate-900 truncate">
+            {ride.dest_label}
+          </p>
+          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
+            <span>{format(new Date(ride.departure_at), 'dd MMM · hh:mm a')}</span>
+            <span>·</span>
+            <span>{ride.available_seats} seats</span>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="font-semibold text-slate-900">₹{ride.price_per_seat}</p>
+          <p className="text-xs text-slate-400">per seat</p>
+          <div className="flex items-center gap-1 mt-1 justify-end">
+            <span className="text-yellow-400 text-xs">★</span>
+            <span className="text-xs text-slate-500">
+              {ride.driver_avg_rating > 0
+                ? ride.driver_avg_rating.toFixed(1)
+                : 'New'
+              }
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SeekResult({
+  seek, selected, onClick
+}: {
+  seek: Seek
+  selected: boolean
+  onClick: () => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className={`p-4 cursor-pointer transition-colors ${
+        selected ? 'bg-orange-50' : 'hover:bg-slate-50'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-900 truncate">
+            {seek.origin_label}
+          </p>
+          <p className="text-xs text-slate-400 mb-1">↓</p>
+          <p className="text-sm font-medium text-slate-900 truncate">
+            {seek.dest_label}
+          </p>
+          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
+            <span>Needs {seek.seats_needed} seat{seek.seats_needed !== 1 ? 's' : ''}</span>
+            <span>·</span>
+            <span>{seek.seeker_name}</span>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div className="flex items-center gap-1 justify-end">
+            <span className="text-yellow-400 text-xs">★</span>
+            <span className="text-xs text-slate-500">
+              {seek.seeker_avg_rating > 0
+                ? seek.seeker_avg_rating.toFixed(1)
+                : 'New'
+              }
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            Expires {format(new Date(seek.expires_at), 'hh:mm a')}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmptyResults({
+  message,
+  action,
+}: {
+  message: string
+  action?: { label: string; href: string }
+}) {
+  return (
+    <div className="p-8 text-center">
+      <p className="text-slate-400 text-sm mb-3">{message}</p>
+      {action && (
+        <Link href={action.href}>
+          <Button variant="outline" size="sm">{action.label}</Button>
+        </Link>
+      )}
+    </div>
+  )
+}
+
+function MapSkeleton({ height }: { height: string }) {
+  return (
+    <div
+      style={{ height }}
+      className="rounded-xl border bg-slate-100 animate-pulse"
+    />
+  )
 }

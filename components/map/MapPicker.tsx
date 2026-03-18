@@ -18,28 +18,38 @@ export default function MapPicker({
   onChange,
   height = '400px',
 }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef       = useRef<any>(null)
-  const originMarker = useRef<any>(null)
-  const destMarker   = useRef<any>(null)
-  const routeLine    = useRef<any>(null)
+  const containerRef  = useRef<HTMLDivElement>(null)
+  const mapRef        = useRef<any>(null)
+  const originMarker  = useRef<any>(null)
+  const destMarker    = useRef<any>(null)
+  const routeLine     = useRef<any>(null)
+  const pickingRef    = useRef<'origin' | 'destination'>('origin')
 
-  const [picking, setPicking] = useState<'origin' | 'destination'>('origin')
-  const [loading, setLoading] = useState(false)
+  const [picking,  setPicking]  = useState<'origin' | 'destination'>('origin')
+  const [loading,  setLoading]  = useState(false)
+  const [localOrigin, setLocalOrigin]   = useState<LatLng | null>(origin)
+  const [localDest,   setLocalDest]     = useState<LatLng | null>(destination)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (mapRef.current) return
     if (!containerRef.current) return
+
+    // ── guard against double-init (React StrictMode) ──
+    if ((containerRef.current as any)._leaflet_id) return
+    if (mapRef.current) return
+
+    let cancelled = false
 
     const init = async () => {
       const L = (await import('leaflet')).default
       const { fixLeafletIcons, makeIcon } = await import('@/lib/leaflet-fix')
       const { reverseGeocode } = await import('@/lib/geocode')
 
+      if (cancelled) return
+      if ((containerRef.current as any)?._leaflet_id) return
+
       fixLeafletIcons()
 
-      // default center — India
       const map = L.map(containerRef.current!, {
         center: [20.5937, 78.9629],
         zoom:   5,
@@ -54,49 +64,51 @@ export default function MapPicker({
       mapRef.current = map
 
       map.on('click', async (e: any) => {
+        if (cancelled) return
         const { lat, lng } = e.latlng
         setLoading(true)
 
         const label = await reverseGeocode(lat, lng)
+        if (cancelled) return
 
-        if (picking === 'origin') {
-          // place / move origin marker
+        if (pickingRef.current === 'origin') {
           if (originMarker.current) {
             originMarker.current.setLatLng([lat, lng])
+              .getPopup()?.setContent(`<b>Origin</b><br/>${label}`)
           } else {
-            originMarker.current = L.marker([lat, lng], {
-              icon: makeIcon('green'),
-            })
+            originMarker.current = L.marker([lat, lng], { icon: makeIcon('green') })
               .bindPopup(`<b>Origin</b><br/>${label}`)
               .addTo(map)
               .openPopup()
           }
 
           const newOrigin = { lat, lng, label }
-          onChange(newOrigin, destination)
+          setLocalOrigin(newOrigin)
+          onChange(newOrigin, localDest)
+          pickingRef.current = 'destination'
           setPicking('destination')
+
         } else {
-          // place / move destination marker
           if (destMarker.current) {
             destMarker.current.setLatLng([lat, lng])
+              .getPopup()?.setContent(`<b>Destination</b><br/>${label}`)
           } else {
-            destMarker.current = L.marker([lat, lng], {
-              icon: makeIcon('red'),
-            })
+            destMarker.current = L.marker([lat, lng], { icon: makeIcon('red') })
               .bindPopup(`<b>Destination</b><br/>${label}`)
               .addTo(map)
               .openPopup()
           }
 
           const newDest = { lat, lng, label }
-          const currentOrigin = origin || (() => {
+          setLocalDest(newDest)
+
+          const currentOrigin = localOrigin || (() => {
             const pos = originMarker.current?.getLatLng()
             return pos ? { lat: pos.lat, lng: pos.lng, label: '' } : null
           })()
 
           onChange(currentOrigin, newDest)
 
-          // draw route line
           if (currentOrigin) {
             if (routeLine.current) {
               routeLine.current.setLatLngs([
@@ -110,13 +122,13 @@ export default function MapPicker({
               ).addTo(map)
             }
 
-            // zoom to fit both markers
             map.fitBounds([
               [currentOrigin.lat, currentOrigin.lng],
               [lat, lng],
             ], { padding: [40, 40] })
           }
 
+          pickingRef.current = 'origin'
           setPicking('origin')
         }
 
@@ -127,36 +139,31 @@ export default function MapPicker({
     init()
 
     return () => {
+      cancelled = true
       if (mapRef.current) {
         mapRef.current.remove()
-        mapRef.current = null
+        mapRef.current      = null
         originMarker.current = null
         destMarker.current   = null
         routeLine.current    = null
+        pickingRef.current   = 'origin'
       }
     }
   }, [])
 
   const reset = () => {
-    if (originMarker.current) {
-      originMarker.current.remove()
-      originMarker.current = null
-    }
-    if (destMarker.current) {
-      destMarker.current.remove()
-      destMarker.current = null
-    }
-    if (routeLine.current) {
-      routeLine.current.remove()
-      routeLine.current = null
-    }
-    onChange(null, null)
+    if (originMarker.current) { originMarker.current.remove(); originMarker.current = null }
+    if (destMarker.current)   { destMarker.current.remove();   destMarker.current   = null }
+    if (routeLine.current)    { routeLine.current.remove();    routeLine.current    = null }
+    setLocalOrigin(null)
+    setLocalDest(null)
+    pickingRef.current = 'origin'
     setPicking('origin')
+    onChange(null, null)
   }
 
   return (
     <div className="space-y-2">
-      {/* instruction bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm">
           <span className={`
@@ -181,7 +188,7 @@ export default function MapPicker({
             <span className="text-xs text-slate-400">Locating...</span>
           )}
         </div>
-        {(origin || destination) && (
+        {(localOrigin || localDest) && (
           <button
             type="button"
             onClick={reset}
@@ -192,32 +199,28 @@ export default function MapPicker({
         )}
       </div>
 
-      {/* map */}
       <div
         ref={containerRef}
         style={{ height, width: '100%' }}
         className="rounded-xl border overflow-hidden"
       />
 
-      {/* selected points summary */}
-      {(origin || destination) && (
+      {(localOrigin || localDest) && (
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className={`
-            p-2 rounded-lg border
-            ${origin ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}
-          `}>
+          <div className={`p-2 rounded-lg border ${
+            localOrigin ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'
+          }`}>
             <p className="font-medium text-green-700 mb-0.5">Origin</p>
             <p className="text-slate-600 truncate">
-              {origin ? origin.label : 'Not set'}
+              {localOrigin ? localOrigin.label : 'Not set'}
             </p>
           </div>
-          <div className={`
-            p-2 rounded-lg border
-            ${destination ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}
-          `}>
+          <div className={`p-2 rounded-lg border ${
+            localDest ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'
+          }`}>
             <p className="font-medium text-red-700 mb-0.5">Destination</p>
             <p className="text-slate-600 truncate">
-              {destination ? destination.label : 'Not set'}
+              {localDest ? localDest.label : 'Not set'}
             </p>
           </div>
         </div>
