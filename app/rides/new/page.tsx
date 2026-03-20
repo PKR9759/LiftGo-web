@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createRide } from "@/lib/api";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { toast } from "sonner";
 import type { LatLng } from "@/types";
 
@@ -41,6 +42,7 @@ type FormData = {
 };
 
 export default function NewRidePage() {
+  const { ready } = useRequireAuth()
   const router = useRouter();
 
   const [origin, setOrigin] = useState<LatLng | null>(null);
@@ -109,6 +111,8 @@ export default function NewRidePage() {
       setLoading(false);
     }
   };
+
+  if (!ready) return null
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
@@ -213,11 +217,10 @@ export default function NewRidePage() {
                   key={day}
                   type="button"
                   onClick={() => toggleDay(i)}
-                  className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                    recurDays.includes(i)
-                      ? "bg-slate-900 text-white border-slate-900"
-                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${recurDays.includes(i)
+                    ? "bg-slate-900 text-white border-slate-900"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                    }`}
                 >
                   {day}
                 </button>

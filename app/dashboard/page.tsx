@@ -13,6 +13,7 @@ import {
   cancelRide, cancelSeek,
 } from '@/lib/api'
 import { getUser } from '@/lib/auth'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { toast } from 'sonner'
 import type { Ride, Seek, Booking } from '@/types'
 import { format } from 'date-fns'
@@ -25,23 +26,25 @@ const MapView = dynamic(
 type Tab = 'my-rides' | 'my-seeks' | 'incoming' | 'my-bookings'
 
 const statusColor: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  pending:   'outline',
+  pending: 'outline',
   confirmed: 'default',
   cancelled: 'destructive',
   completed: 'secondary',
-  active:    'default',
-  matched:   'secondary',
-  expired:   'destructive',
+  active: 'default',
+  matched: 'secondary',
+  expired: 'destructive',
 }
 
 export default function DashboardPage() {
-  const [user, setUser]             = useState<any>(null)
-  const [tab,  setTab]              = useState<Tab>('my-rides')
-  const [myRides,    setMyRides]    = useState<Ride[]>([])
-  const [mySeeks,    setMySeeks]    = useState<Seek[]>([])
-  const [incoming,   setIncoming]   = useState<Booking[]>([])
+  const { ready } = useRequireAuth()
+
+  const [user, setUser] = useState<any>(null)
+  const [tab, setTab] = useState<Tab>('my-rides')
+  const [myRides, setMyRides] = useState<Ride[]>([])
+  const [mySeeks, setMySeeks] = useState<Seek[]>([])
+  const [incoming, setIncoming] = useState<Booking[]>([])
   const [myBookings, setMyBookings] = useState<Booking[]>([])
-  const [loading,    setLoading]    = useState(true)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setUser(getUser())
@@ -119,11 +122,13 @@ export default function DashboardPage() {
   }
 
   const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: 'my-rides',    label: 'My rides',     count: myRides.length },
-    { key: 'my-seeks',    label: 'My seeks',     count: mySeeks.filter(s => s.status === 'active').length },
-    { key: 'incoming',    label: 'Incoming',      count: incoming.filter(b => b.status === 'pending').length },
-    { key: 'my-bookings', label: 'My bookings',   count: myBookings.length },
+    { key: 'my-rides', label: 'My rides', count: myRides.length },
+    { key: 'my-seeks', label: 'My seeks', count: mySeeks.filter(s => s.status === 'active').length },
+    { key: 'incoming', label: 'Incoming', count: incoming.filter(b => b.status === 'pending').length },
+    { key: 'my-bookings', label: 'My bookings', count: myBookings.length },
   ]
+
+  if (!ready) return null
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">

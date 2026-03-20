@@ -12,17 +12,19 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { login } from '@/lib/api'
 import { setAuth } from '@/lib/auth'
+import { useGuestOnly } from '@/hooks/useRequireAuth'
 import { toast } from 'sonner'
 
 const schema = z.object({
-  email:    z.string().email('Invalid email'),
+  email: z.string().email('Invalid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
 })
 
 type FormData = z.infer<typeof schema>
 
 export default function LoginPage() {
-  const router  = useRouter()
+  const { ready } = useGuestOnly()
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
 
   const {
@@ -37,7 +39,7 @@ export default function LoginPage() {
       const res = await login(data)
       setAuth(res.data.token, res.data.user)
       toast.success('Welcome back!')
-      router.push('/')
+      router.push('/liveboard')
       router.refresh()
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Login failed')
@@ -45,6 +47,8 @@ export default function LoginPage() {
       setLoading(false)
     }
   }
+
+  if (!ready) return null
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">

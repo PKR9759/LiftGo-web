@@ -10,13 +10,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getMe, updateMe, getUserReviews } from '@/lib/api'
 import { setAuth, getToken } from '@/lib/auth'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { toast } from 'sonner'
 import type { User, Review } from '@/types'
 
 const schema = z.object({
-  name:  z.string().min(2, 'Name must be at least 2 characters'),
+  name: z.string().min(2, 'Name must be at least 2 characters'),
   phone: z.string().optional(),
-  role:  z.enum(['rider', 'driver', 'both']),
+  role: z.enum(['rider', 'driver', 'both']),
 })
 
 type FormData = z.infer<typeof schema>
@@ -34,10 +35,12 @@ function Stars({ rating }: { rating: number }) {
 }
 
 export default function ProfilePage() {
-  const [user,    setUser]    = useState<User | null>(null)
+  const { ready } = useRequireAuth()
+
+  const [user, setUser] = useState<User | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving,  setSaving]  = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const {
     register,
@@ -52,9 +55,9 @@ export default function ProfilePage() {
         const res = await getMe()
         setUser(res.data)
         reset({
-          name:  res.data.name,
+          name: res.data.name,
           phone: res.data.phone ?? '',
-          role:  res.data.role as 'rider' | 'driver' | 'both',
+          role: res.data.role as 'rider' | 'driver' | 'both',
         })
         const rvRes = await getUserReviews(res.data.id)
         setReviews(rvRes.data)

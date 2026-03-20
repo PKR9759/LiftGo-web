@@ -12,15 +12,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { register as registerUser } from '@/lib/api'
 import { setAuth } from '@/lib/auth'
+import { useGuestOnly } from '@/hooks/useRequireAuth'
 import { toast } from 'sonner'
 
 const schema = z.object({
-  name:     z.string().min(2, 'Name must be at least 2 characters'),
-  email:    z.string().email('Invalid email'),
-  phone:    z.string().optional(),
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email'),
+  phone: z.string().optional(),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  confirm:  z.string(),
-  role:     z.enum(['rider', 'driver', 'both']),
+  confirm: z.string(),
+  role: z.enum(['rider', 'driver', 'both']),
 }).refine(d => d.password === d.confirm, {
   message: 'Passwords do not match',
   path: ['confirm'],
@@ -29,7 +30,8 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function RegisterPage() {
-  const router    = useRouter()
+  const { ready } = useGuestOnly()
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
 
   const {
@@ -45,15 +47,15 @@ export default function RegisterPage() {
     setLoading(true)
     try {
       const res = await registerUser({
-        name:     data.name,
-        email:    data.email,
+        name: data.name,
+        email: data.email,
         password: data.password,
-        phone:    data.phone,
-        role:     data.role,
+        phone: data.phone,
+        role: data.role,
       })
       setAuth(res.data.token, res.data.user)
       toast.success('Account created!')
-      router.push('/')
+      router.push('/liveboard')
       router.refresh()
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Registration failed')
@@ -61,6 +63,8 @@ export default function RegisterPage() {
       setLoading(false)
     }
   }
+
+  if (!ready) return null
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
@@ -146,8 +150,8 @@ export default function RegisterPage() {
                       {r === 'both'
                         ? 'Both'
                         : r === 'rider'
-                        ? 'Find rides'
-                        : 'Offer rides'
+                          ? 'Find rides'
+                          : 'Offer rides'
                       }
                     </div>
                   </label>

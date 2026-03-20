@@ -1,470 +1,339 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { getNearbyRides, getNearbySeeks } from '@/lib/api'
 import { isLoggedIn } from '@/lib/auth'
-import type { Ride, Seek, LatLng } from '@/types'
-import { format } from 'date-fns'
 
-const MapPicker = dynamic(
-  () => import('@/components/map/MapPicker'),
-  { ssr: false, loading: () => <MapSkeleton height="420px" /> }
-)
+export default function LandingPage() {
+    const [loggedIn, setLoggedIn] = useState(false)
 
-type Tab = 'rides' | 'seeks'
+    useEffect(() => {
+        setLoggedIn(isLoggedIn())
+    }, [])
 
-export default function HomePage() {
-  const [rides,        setRides]        = useState<Ride[]>([])
-  const [seeks,        setSeeks]        = useState<Seek[]>([])
-  const [tab,          setTab]          = useState<Tab>('rides')
-  const [loading,      setLoading]      = useState(false)
-  const [searched,     setSearched]     = useState(false)
-  const [selectedRide, setSelectedRide] = useState<Ride | null>(null)
-  const [selectedSeek, setSelectedSeek] = useState<Seek | null>(null)
-  const [loggedIn,     setLoggedIn]     = useState(false)
+    return (
+        <div className="min-h-screen bg-white">
 
-  const searchRef = useRef<(o: LatLng, d: LatLng) => void>(null)
+            {/* ─── Hero Section ─── */}
+            <section className="relative overflow-hidden">
+                {/* gradient background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900" />
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.15),transparent_50%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(16,185,129,0.1),transparent_50%)]" />
 
-  useEffect(() => {
-    setLoggedIn(isLoggedIn())
-  }, [])
-
-  const search = useCallback(async (o: LatLng, d: LatLng) => {
-    setLoading(true)
-    setSearched(true)
-    try {
-      const [ridesRes, seeksRes] = await Promise.all([
-        getNearbyRides({
-          origin_lat: o.lat, origin_lng: o.lng,
-          dest_lat:   d.lat, dest_lng:   d.lng,
-          radius: 3000,
-        }),
-        getNearbySeeks({
-          origin_lat: o.lat, origin_lng: o.lng,
-          dest_lat:   d.lat, dest_lng:   d.lng,
-          radius: 3000,
-        }),
-      ])
-      setRides(ridesRes.data)
-      setSeeks(seeksRes.data)
-    } catch {
-      setRides([])
-      setSeeks([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    searchRef.current = search
-  }, [search])
-
-  const handleMapChange = useCallback((
-    o: LatLng | null,
-    d: LatLng | null
-  ) => {
-    setSelectedRide(null)
-    setSelectedSeek(null)
-    if (o && d) {
-      searchRef.current?.(o, d)
-    }
-  }, [])
-
-  const reset = () => {
-    setRides([])
-    setSeeks([])
-    setSearched(false)
-    setSelectedRide(null)
-    setSelectedSeek(null)
-  }
-
-  return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-
-      {/* header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Live ride board</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Click your origin then destination to find matches
-          </p>
-        </div>
-        {loggedIn && (
-          <div className="flex gap-2">
-            <Link href="/rides/new">
-              <Button size="sm">+ Offer ride</Button>
-            </Link>
-            <Link href="/seeks/new">
-              <Button size="sm" variant="outline">+ Need ride</Button>
-            </Link>
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* left — map always visible, never toggled */}
-        <div className="lg:col-span-2">
-          <MapPicker
-            onChange={handleMapChange}
-            height="420px"
-          />
-        </div>
-
-        {/* right — results panel */}
-        <div className="lg:col-span-1">
-          {!searched ? (
-            <div className="bg-white border rounded-xl p-6 text-center h-full
-              flex flex-col items-center justify-center min-h-[200px]">
-              <p className="text-slate-400 text-sm mb-4">
-                Click two points on the map to find rides and seekers near your route
-              </p>
-              {!loggedIn && (
-                <div className="space-y-2 w-full">
-                  <Link href="/auth/register" className="block">
-                    <Button className="w-full" size="sm">Sign up to post</Button>
-                  </Link>
-                  <Link href="/auth/login" className="block">
-                    <Button variant="ghost" className="w-full" size="sm">Log in</Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white border rounded-xl overflow-hidden">
-
-              {/* tabs */}
-              <div className="flex border-b">
-                <button
-                  onClick={() => { setTab('rides'); setSelectedRide(null) }}
-                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                    tab === 'rides'
-                      ? 'text-slate-900 border-b-2 border-slate-900'
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  Rides ({rides.length})
-                </button>
-                <button
-                  onClick={() => { setTab('seeks'); setSelectedSeek(null) }}
-                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                    tab === 'seeks'
-                      ? 'text-slate-900 border-b-2 border-slate-900'
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  Seekers ({seeks.length})
-                </button>
-              </div>
-
-              {/* search again button */}
-              <div className="px-4 pt-3">
-                <button
-                  onClick={reset}
-                  className="text-xs text-slate-400 hover:text-slate-600 underline"
-                >
-                  Click map to search a different route
-                </button>
-              </div>
-
-              {/* loading */}
-              {loading && (
-                <div className="p-4 space-y-3">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="animate-pulse">
-                      <div className="h-3 bg-slate-100 rounded w-2/3 mb-2" />
-                      <div className="h-3 bg-slate-100 rounded w-1/2" />
+                <div className="relative max-w-6xl mx-auto px-4 pt-20 pb-32 text-center">
+                    {/* badge */}
+                    <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 
+            rounded-full px-4 py-1.5 mb-8 text-sm text-white/80">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        Live rides happening near you
                     </div>
-                  ))}
-                </div>
-              )}
 
-              {/* rides */}
-              {!loading && tab === 'rides' && (
-                <div className="divide-y max-h-[340px] overflow-y-auto">
-                  {rides.length === 0 ? (
-                    <EmptyResults
-                      message="No rides near this route"
-                      action={loggedIn
-                        ? { label: 'Offer a ride', href: '/rides/new' }
-                        : undefined
-                      }
-                    />
-                  ) : (
-                    rides.map(ride => (
-                      <RideResult
-                        key={ride.id}
-                        ride={ride}
-                        selected={selectedRide?.id === ride.id}
-                        onClick={() => setSelectedRide(
-                          selectedRide?.id === ride.id ? null : ride
+                    <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white tracking-tight leading-tight mb-6">
+                        Share your ride,
+                        <br />
+                        <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                            split the cost
+                        </span>
+                    </h1>
+
+                    <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
+                        LiftGo connects drivers with empty seats to passengers headed the same way.
+                        Save money, reduce traffic, and make every journey better.
+                    </p>
+
+                    <div className="flex items-center justify-center gap-4 flex-wrap">
+                        {loggedIn ? (
+                            <Link href="/liveboard">
+                                <Button size="lg" className="bg-emerald-500 hover:bg-emerald-600 text-white
+                  px-8 py-6 text-base rounded-xl shadow-lg shadow-emerald-500/25 transition-all
+                  hover:shadow-emerald-500/40 hover:-translate-y-0.5">
+                                    Go to Live Board →
+                                </Button>
+                            </Link>
+                        ) : (
+                            <>
+                                <Link href="/auth/register">
+                                    <Button size="lg" className="bg-emerald-500 hover:bg-emerald-600 text-white
+                    px-8 py-6 text-base rounded-xl shadow-lg shadow-emerald-500/25 transition-all
+                    hover:shadow-emerald-500/40 hover:-translate-y-0.5">
+                                        Get Started — It&apos;s Free
+                                    </Button>
+                                </Link>
+                                <Link href="/auth/login">
+                                    <Button size="lg" variant="outline" className="border-white/30 text-white
+                    hover:bg-white/10 px-8 py-6 text-base rounded-xl transition-all
+                    hover:-translate-y-0.5">
+                                        Log In
+                                    </Button>
+                                </Link>
+                            </>
                         )}
-                        loggedIn={loggedIn}
-                      />
-                    ))
-                  )}
+                    </div>
+
+                    {/* stats row */}
+                    <div className="flex items-center justify-center gap-10 mt-16 text-white/70 text-sm">
+                        <div className="text-center">
+                            <p className="text-2xl font-bold text-white">100%</p>
+                            <p>Free to use</p>
+                        </div>
+                        <div className="w-px h-10 bg-white/20" />
+                        <div className="text-center">
+                            <p className="text-2xl font-bold text-white">India</p>
+                            <p>Wide coverage</p>
+                        </div>
+                        <div className="w-px h-10 bg-white/20" />
+                        <div className="text-center">
+                            <p className="text-2xl font-bold text-white">Real-time</p>
+                            <p>Live matching</p>
+                        </div>
+                    </div>
                 </div>
-              )}
 
-              {/* seeks */}
-              {!loading && tab === 'seeks' && (
-                <div className="divide-y max-h-[340px] overflow-y-auto">
-                  {seeks.length === 0 ? (
-                    <EmptyResults
-                      message="No seekers near this route"
-                      action={loggedIn
-                        ? { label: 'Post your need', href: '/seeks/new' }
-                        : undefined
-                      }
-                    />
-                  ) : (
-                    seeks.map(seek => (
-                      <SeekResult
-                        key={seek.id}
-                        seek={seek}
-                        selected={selectedSeek?.id === seek.id}
-                        onClick={() => setSelectedSeek(
-                          selectedSeek?.id === seek.id ? null : seek
-                        )}
-                      />
-                    ))
-                  )}
+                {/* wave divider */}
+                <div className="absolute bottom-0 left-0 right-0">
+                    <svg viewBox="0 0 1440 120" fill="none" className="w-full">
+                        <path d="M0,60 C360,120 720,0 1080,60 C1260,90 1380,80 1440,60 L1440,120 L0,120 Z"
+                            fill="white" />
+                    </svg>
                 </div>
-              )}
+            </section>
 
-            </div>
-          )}
-        </div>
-      </div>
+            {/* ─── How It Works ─── */}
+            <section className="py-24 bg-white">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="text-center mb-16">
+                        <p className="text-emerald-600 font-semibold text-sm uppercase tracking-wider mb-3">
+                            Simple & Quick
+                        </p>
+                        <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
+                            How LiftGo works
+                        </h2>
+                    </div>
 
-      {/* selected ride detail */}
-      {selectedRide && (
-        <div className="mt-4 bg-white border rounded-xl p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="font-semibold text-slate-900">
-                  {selectedRide.origin_label} → {selectedRide.dest_label}
-                </h2>
-                <Badge variant={
-                  selectedRide.status === 'active' ? 'default' : 'secondary'
-                }>
-                  {selectedRide.status}
-                </Badge>
-              </div>
-              <div className="flex flex-wrap gap-3 text-sm text-slate-500 mb-3">
-                <span>
-                  {format(new Date(selectedRide.departure_at), 'dd MMM · hh:mm a')}
-                </span>
-                <span>·</span>
-                <span>{selectedRide.available_seats} seats left</span>
-                <span>·</span>
-                <span className="font-medium text-slate-900">
-                  ₹{selectedRide.price_per_seat}/seat
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center
-                  justify-center text-xs font-medium">
-                  {selectedRide.driver_name?.charAt(0).toUpperCase()}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        {[
+                            {
+                                step: '01',
+                                icon: '📍',
+                                title: 'Set your route',
+                                desc: 'Drop pins on the map for your pickup and destination. We use Ola Maps for precise Indian locations.',
+                                color: 'from-emerald-500 to-teal-500',
+                            },
+                            {
+                                step: '02',
+                                icon: '🔍',
+                                title: 'Find matches',
+                                desc: 'Instantly see drivers and riders going your way. Filter by time, price, and rating.',
+                                color: 'from-blue-500 to-indigo-500',
+                            },
+                            {
+                                step: '03',
+                                icon: '🚗',
+                                title: 'Book & ride',
+                                desc: 'Reserve your seat with one click. Rate your experience and build your reputation.',
+                                color: 'from-violet-500 to-purple-500',
+                            },
+                        ].map((item) => (
+                            <div key={item.step}
+                                className="relative group bg-white border border-slate-100 rounded-2xl p-8
+                  hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300
+                  hover:-translate-y-1"
+                            >
+                                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${item.color}
+                  flex items-center justify-center text-2xl mb-6 shadow-lg
+                  group-hover:scale-110 transition-transform`}>
+                                    {item.icon}
+                                </div>
+                                <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">
+                                    Step {item.step}
+                                </span>
+                                <h3 className="text-xl font-bold text-slate-900 mt-2 mb-3">{item.title}</h3>
+                                <p className="text-slate-500 leading-relaxed">{item.desc}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <span>{selectedRide.driver_name}</span>
-                <span className="text-yellow-400">★</span>
-                <span>
-                  {selectedRide.driver_avg_rating > 0
-                    ? selectedRide.driver_avg_rating.toFixed(1)
-                    : 'New'}
-                </span>
-              </div>
-              {selectedRide.notes && (
-                <p className="text-xs text-slate-400 mt-2 italic">
-                  "{selectedRide.notes}"
-                </p>
-              )}
-            </div>
-            <div className="shrink-0 flex gap-2">
-              {loggedIn ? (
-                <Link href={`/rides/${selectedRide.id}`}>
-                  <Button size="sm">Book seat</Button>
-                </Link>
-              ) : (
-                <Link href="/auth/login">
-                  <Button size="sm">Log in to book</Button>
-                </Link>
-              )}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelectedRide(null)}
-              >
-                ✕
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+            </section>
 
-      {/* selected seek detail */}
-      {selectedSeek && (
-        <div className="mt-4 bg-white border rounded-xl p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="font-semibold text-slate-900">
-                  {selectedSeek.origin_label} → {selectedSeek.dest_label}
-                </h2>
-                <Badge variant="outline">{selectedSeek.status}</Badge>
-              </div>
-              <div className="flex flex-wrap gap-3 text-sm text-slate-500 mb-3">
-                <span>
-                  Needs {selectedSeek.seats_needed} seat{selectedSeek.seats_needed !== 1 ? 's' : ''}
-                </span>
-                <span>·</span>
-                <span>
-                  Expires {format(new Date(selectedSeek.expires_at), 'hh:mm a')}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center
-                  justify-center text-xs font-medium">
-                  {selectedSeek.seeker_name?.charAt(0).toUpperCase()}
+            {/* ─── Features Grid ─── */}
+            <section className="py-24 bg-slate-50">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="text-center mb-16">
+                        <p className="text-emerald-600 font-semibold text-sm uppercase tracking-wider mb-3">
+                            Built for India
+                        </p>
+                        <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
+                            Everything you need, nothing you don&apos;t
+                        </h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[
+                            {
+                                icon: '🗺️',
+                                title: 'Ola Maps Integration',
+                                desc: 'Accurate Indian maps with autocomplete, reverse geocoding, and route plotting powered by Ola Maps.',
+                            },
+                            {
+                                icon: '🔄',
+                                title: 'Recurring Rides',
+                                desc: 'Set up your daily commute once. LiftGo automatically reposts your ride on selected days.',
+                            },
+                            {
+                                icon: '⭐',
+                                title: 'Rating & Reviews',
+                                desc: 'Build trust with community reviews. See driver ratings before booking.',
+                            },
+                            {
+                                icon: '📱',
+                                title: 'Real-time Live Board',
+                                desc: 'See all active rides and seekers on an interactive map. Find matches instantly.',
+                            },
+                            {
+                                icon: '💰',
+                                title: 'Flexible Pricing',
+                                desc: 'Drivers set their own price per seat. Find rides that fit your budget or offer them for free.',
+                            },
+                            {
+                                icon: '🔒',
+                                title: 'Secure & Private',
+                                desc: 'JWT-based authentication keeps your data safe. Share only what you want.',
+                            },
+                        ].map((feature) => (
+                            <div key={feature.title}
+                                className="bg-white border border-slate-100 rounded-2xl p-6
+                  hover:shadow-lg hover:shadow-slate-100 transition-all duration-300
+                  hover:border-slate-200"
+                            >
+                                <span className="text-3xl mb-4 block">{feature.icon}</span>
+                                <h3 className="font-bold text-slate-900 mb-2">{feature.title}</h3>
+                                <p className="text-sm text-slate-500 leading-relaxed">{feature.desc}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <span>{selectedSeek.seeker_name}</span>
-                <span className="text-yellow-400">★</span>
-                <span>
-                  {selectedSeek.seeker_avg_rating > 0
-                    ? selectedSeek.seeker_avg_rating.toFixed(1)
-                    : 'New'}
-                </span>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setSelectedSeek(null)}
-            >
-              ✕
-            </Button>
-          </div>
-        </div>
-      )}
+            </section>
 
-    </div>
-  )
-}
+            {/* ─── For Drivers & Riders ─── */}
+            <section className="py-24 bg-white">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
-function RideResult({ ride, selected, onClick, loggedIn }: {
-  ride: Ride; selected: boolean; onClick: () => void; loggedIn: boolean
-}) {
-  return (
-    <div
-      onClick={onClick}
-      className={`p-4 cursor-pointer transition-colors ${
-        selected ? 'bg-blue-50' : 'hover:bg-slate-50'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-900 truncate">
-            {ride.origin_label}
-          </p>
-          <p className="text-xs text-slate-400 mb-1">↓</p>
-          <p className="text-sm font-medium text-slate-900 truncate">
-            {ride.dest_label}
-          </p>
-          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-            <span>{format(new Date(ride.departure_at), 'dd MMM · hh:mm a')}</span>
-            <span>·</span>
-            <span>{ride.available_seats} seats</span>
-          </div>
-        </div>
-        <div className="text-right shrink-0">
-          <p className="font-semibold text-slate-900">₹{ride.price_per_seat}</p>
-          <p className="text-xs text-slate-400">per seat</p>
-          <div className="flex items-center gap-1 mt-1 justify-end">
-            <span className="text-yellow-400 text-xs">★</span>
-            <span className="text-xs text-slate-500">
-              {ride.driver_avg_rating > 0
-                ? ride.driver_avg_rating.toFixed(1)
-                : 'New'}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+                        {/* Drivers */}
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-10 text-white">
+                            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl" />
+                            <span className="text-4xl mb-6 block">🚗</span>
+                            <h3 className="text-2xl font-bold mb-4">For Drivers</h3>
+                            <ul className="space-y-3 text-slate-300 mb-8">
+                                <li className="flex items-start gap-2">
+                                    <span className="text-emerald-400 mt-0.5">✓</span>
+                                    Earn money from empty seats on your daily commute
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-emerald-400 mt-0.5">✓</span>
+                                    Set your own price and schedule
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-emerald-400 mt-0.5">✓</span>
+                                    Recurring ride posting — set it and forget it
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-emerald-400 mt-0.5">✓</span>
+                                    Approve or decline booking requests
+                                </li>
+                            </ul>
+                            <Link href="/auth/register">
+                                <Button className="bg-emerald-500 hover:bg-emerald-600 rounded-lg">
+                                    Start offering rides
+                                </Button>
+                            </Link>
+                        </div>
 
-function SeekResult({ seek, selected, onClick }: {
-  seek: Seek; selected: boolean; onClick: () => void
-}) {
-  return (
-    <div
-      onClick={onClick}
-      className={`p-4 cursor-pointer transition-colors ${
-        selected ? 'bg-orange-50' : 'hover:bg-slate-50'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-900 truncate">
-            {seek.origin_label}
-          </p>
-          <p className="text-xs text-slate-400 mb-1">↓</p>
-          <p className="text-sm font-medium text-slate-900 truncate">
-            {seek.dest_label}
-          </p>
-          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-            <span>
-              Needs {seek.seats_needed} seat{seek.seats_needed !== 1 ? 's' : ''}
-            </span>
-            <span>·</span>
-            <span>{seek.seeker_name}</span>
-          </div>
-        </div>
-        <div className="text-right shrink-0">
-          <div className="flex items-center gap-1 justify-end">
-            <span className="text-yellow-400 text-xs">★</span>
-            <span className="text-xs text-slate-500">
-              {seek.seeker_avg_rating > 0
-                ? seek.seeker_avg_rating.toFixed(1)
-                : 'New'}
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Expires {format(new Date(seek.expires_at), 'hh:mm a')}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
+                        {/* Riders */}
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 p-10 text-white">
+                            <div className="absolute top-0 right-0 w-40 h-40 bg-cyan-400/10 rounded-full blur-3xl" />
+                            <span className="text-4xl mb-6 block">🧳</span>
+                            <h3 className="text-2xl font-bold mb-4">For Riders</h3>
+                            <ul className="space-y-3 text-indigo-200 mb-8">
+                                <li className="flex items-start gap-2">
+                                    <span className="text-cyan-300 mt-0.5">✓</span>
+                                    Find affordable rides going your way
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-cyan-300 mt-0.5">✓</span>
+                                    Post a &quot;seek&quot; and let drivers find you
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-cyan-300 mt-0.5">✓</span>
+                                    See driver ratings before booking
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-cyan-300 mt-0.5">✓</span>
+                                    Book seats with a single click
+                                </li>
+                            </ul>
+                            <Link href="/auth/register">
+                                <Button className="bg-white text-indigo-700 hover:bg-indigo-50 rounded-lg">
+                                    Find a ride now
+                                </Button>
+                            </Link>
+                        </div>
 
-function EmptyResults({ message, action }: {
-  message: string
-  action?: { label: string; href: string }
-}) {
-  return (
-    <div className="p-8 text-center">
-      <p className="text-slate-400 text-sm mb-3">{message}</p>
-      {action && (
-        <Link href={action.href}>
-          <Button variant="outline" size="sm">{action.label}</Button>
-        </Link>
-      )}
-    </div>
-  )
-}
+                    </div>
+                </div>
+            </section>
 
-function MapSkeleton({ height }: { height: string }) {
-  return (
-    <div
-      style={{ height }}
-      className="rounded-xl border bg-slate-100 animate-pulse"
-    />
-  )
+            {/* ─── CTA Section ─── */}
+            <section className="py-24 bg-gradient-to-br from-emerald-600 to-teal-700 relative overflow-hidden">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.05),transparent_70%)]" />
+                <div className="relative max-w-3xl mx-auto px-4 text-center">
+                    <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
+                        Ready to share the road?
+                    </h2>
+                    <p className="text-emerald-100 text-lg mb-10 leading-relaxed">
+                        Join LiftGo today and start saving on your daily commute.
+                        Every shared ride means one less car on the road.
+                    </p>
+                    <div className="flex items-center justify-center gap-4 flex-wrap">
+                        <Link href="/auth/register">
+                            <Button size="lg" className="bg-white text-emerald-700 hover:bg-emerald-50
+                px-8 py-6 text-base rounded-xl shadow-lg transition-all
+                hover:-translate-y-0.5 hover:shadow-xl">
+                                Create Free Account
+                            </Button>
+                        </Link>
+                        <Link href="/auth/login">
+                            <Button size="lg" variant="outline" className="border-white/40 text-white
+                hover:bg-white/10 px-8 py-6 text-base rounded-xl transition-all
+                hover:-translate-y-0.5">
+                                Log In
+                            </Button>
+                        </Link>
+                    </div>
+                </div>
+            </section>
+
+            {/* ─── Footer ─── */}
+            <footer className="bg-slate-900 text-slate-400 py-12">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xl font-bold text-white">LiftGo</span>
+                            <span className="text-sm">— Share rides, save money</span>
+                        </div>
+                        <div className="flex items-center gap-6 text-sm">
+                            <Link href="/auth/login" className="hover:text-white transition-colors">Log In</Link>
+                            <Link href="/auth/register" className="hover:text-white transition-colors">Sign Up</Link>
+                        </div>
+                    </div>
+                    <div className="mt-8 pt-8 border-t border-slate-800 text-center text-xs text-slate-500">
+                        © {new Date().getFullYear()} LiftGo. Built with ❤️ for India.
+                    </div>
+                </div>
+            </footer>
+
+        </div>
+    )
 }

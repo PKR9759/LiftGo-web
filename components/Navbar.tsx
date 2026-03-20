@@ -8,12 +8,12 @@ import { clearAuth, getUser, isLoggedIn } from '@/lib/auth'
 import { useEffect, useState } from 'react'
 
 export default function Navbar() {
-  const router   = useRouter()
+  const router = useRouter()
   const pathname = usePathname()
 
-  const [loggedIn,  setLoggedIn]  = useState(false)
-  const [userName,  setUserName]  = useState('')
-  const [mounted,   setMounted]   = useState(false)
+  const [loggedIn, setLoggedIn] = useState(false)
+  const [userName, setUserName] = useState('')
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -60,10 +60,13 @@ export default function Navbar() {
 
         <div className="flex items-center gap-6">
           <Link href="/" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">
-            Live board
+            Home
           </Link>
           {loggedIn && (
             <>
+              <Link href="/liveboard" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">
+                Live board
+              </Link>
               <Link href="/rides/new" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">
                 Offer ride
               </Link>
