@@ -39,7 +39,7 @@ export const getUserReviews = (userID: string) =>
 // ── rides ─────────────────────────────────────────────────
 export const getNearbyRides = (params: {
   origin_lat: number; origin_lng: number
-  dest_lat: number;   dest_lng: number
+  dest_lat: number; dest_lng: number
   radius?: number
 }) => client.get<Ride[]>('/api/rides/nearby', { params })
 
@@ -51,11 +51,14 @@ export const getMyRides = () =>
 
 export const createRide = (data: {
   origin_lat: number; origin_lng: number; origin_label: string
-  dest_lat: number;   dest_lng: number;   dest_label: string
+  dest_lat: number; dest_lng: number; dest_label: string
   departure_at: string; total_seats: number
   price_per_seat: number; is_recurring: boolean
   recurrence_days?: number[]; notes?: string
 }) => client.post<Ride>('/api/rides', data)
+
+export const updateRideStatus = (id: string, status: 'active' | 'completed') =>
+  client.put<Ride>(`/api/rides/${id}/status`, { status })
 
 export const cancelRide = (id: string) =>
   client.delete(`/api/rides/${id}`)
@@ -63,7 +66,7 @@ export const cancelRide = (id: string) =>
 // ── seeks ─────────────────────────────────────────────────
 export const getNearbySeeks = (params: {
   origin_lat: number; origin_lng: number
-  dest_lat: number;   dest_lng: number
+  dest_lat: number; dest_lng: number
   radius?: number
 }) => client.get<Seek[]>('/api/seeks/nearby', { params })
 
@@ -72,7 +75,7 @@ export const getMySeeks = () =>
 
 export const createSeek = (data: {
   origin_lat: number; origin_lng: number; origin_label: string
-  dest_lat: number;   dest_lng: number;   dest_label: string
+  dest_lat: number; dest_lng: number; dest_label: string
   seats_needed: number; is_recurring: boolean
   recurrence_days?: number[]
 }) => client.post<Seek>('/api/seeks', data)
