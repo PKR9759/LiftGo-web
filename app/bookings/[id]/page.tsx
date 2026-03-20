@@ -2,19 +2,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { getBooking, createReview } from '@/lib/api'
+import { getBooking, createReview, confirmBooking, cancelBooking } from '@/lib/api'
 import { getUser } from '@/lib/auth'
 import { toast } from 'sonner'
 import type { Booking } from '@/types'
 import { format } from 'date-fns'
 
 const statusColor: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  pending:   'outline',
+  pending: 'outline',
   confirmed: 'default',
   cancelled: 'destructive',
   completed: 'secondary',
@@ -35,9 +35,8 @@ function ReviewStars({
           type="button"
           disabled={!onChange}
           onClick={() => onChange?.(i)}
-          className={`text-2xl transition-transform ${
-            onChange ? 'cursor-pointer hover:scale-110' : 'cursor-default'
-          } ${i <= rating ? 'text-yellow-400' : 'text-slate-200'}`}
+          className={`text-2xl transition-transform ${onChange ? 'cursor-pointer hover:scale-110' : 'cursor-default'
+            } ${i <= rating ? 'text-yellow-400' : 'text-slate-200'}`}
         >
           ★
         </button>
@@ -47,15 +46,17 @@ function ReviewStars({
 }
 
 export default function BookingDetailPage() {
-  const { id }      = useParams<{ id: string }>()
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const currentUser = getUser()
 
-  const [booking,    setBooking]    = useState<Booking | null>(null)
-  const [loading,    setLoading]    = useState(true)
-  const [rating,     setRating]     = useState(5)
-  const [comment,    setComment]    = useState('')
+  const [booking, setBooking] = useState<Booking | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [rating, setRating] = useState(5)
+  const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [reviewed,   setReviewed]   = useState(false)
+  const [reviewed, setReviewed] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -81,7 +82,7 @@ export default function BookingDetailPage() {
 
     try {
       await createReview({
-        booking_id:  id,
+        booking_id: id,
         reviewee_id: revieweeID,
         rating,
         comment,
@@ -108,9 +109,10 @@ export default function BookingDetailPage() {
 
   if (!booking) return null
 
-  const isRider       = currentUser?.id === booking.rider_id
-  const canReview     = ['confirmed', 'completed'].includes(booking.status)
-  const departure     = new Date(booking.departure_at)
+  const isRider = currentUser?.id === booking.rider_id
+  const isDriver = currentUser?.id === booking.driver_id
+  const canReview = booking.status === 'completed'
+  const departure = new Date(booking.departure_at)
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
@@ -173,6 +175,50 @@ export default function BookingDetailPage() {
         </div>
       </div>
 
+      {/* ── action buttons ── */}
+      {['pending', 'confirmed'].includes(booking.status) && (
+        <div className="bg-white border rounded-xl p-5 flex flex-wrap gap-3">
+          {isDriver && booking.status === 'pending' && (
+            <Button
+              disabled={actionLoading}
+              onClick={async () => {
+                setActionLoading(true)
+                try {
+                  await confirmBooking(id)
+                  const res = await getBooking(id)
+                  setBooking(res.data)
+                  toast.success('Booking confirmed!')
+                } catch (err: any) {
+                  toast.error(err.response?.data?.error || 'Failed to confirm')
+                } finally {
+                  setActionLoading(false)
+                }
+              }}
+            >
+              {actionLoading ? 'Confirming...' : 'Confirm Booking'}
+            </Button>
+          )}
+          <Button
+            variant="destructive"
+            disabled={actionLoading}
+            onClick={async () => {
+              setActionLoading(true)
+              try {
+                await cancelBooking(id)
+                toast.success('Booking cancelled')
+                router.push('/dashboard')
+              } catch (err: any) {
+                toast.error(err.response?.data?.error || 'Failed to cancel')
+              } finally {
+                setActionLoading(false)
+              }
+            }}
+          >
+            {actionLoading ? 'Cancelling...' : 'Cancel Booking'}
+          </Button>
+        </div>
+      )}
+
       {/* review */}
       {canReview && (
         <div className="bg-white border rounded-xl p-5">
@@ -214,6 +260,17 @@ export default function BookingDetailPage() {
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── live tracking placeholder ── */}
+      {booking.status === 'confirmed' && (
+        <div className="bg-white border rounded-xl p-5">
+          {/* LIVE_MAP_PLACEHOLDER */}
+          <h2 className="font-semibold text-slate-900 mb-2">Live Tracking</h2>
+          <p className="text-slate-400 text-sm">
+            Live tracking will appear here when the ride is active.
+          </p>
         </div>
       )}
 
