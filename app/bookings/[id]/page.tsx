@@ -7,9 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { getBooking, createReview, confirmBooking, cancelBooking } from '@/lib/api'
+import { getBooking, createReview, confirmBooking, cancelBooking, updateRideStatus } from '@/lib/api'
 import { getUser } from '@/lib/auth'
 import { toast } from 'sonner'
+import { useDriverLocation } from '@/hooks/useDriverLocation'
+import { useRideTracking } from '@/hooks/useRideTracking'
+import LiveMap from '@/components/map/LiveMap'
 import type { Booking } from '@/types'
 import { format } from 'date-fns'
 
@@ -71,6 +74,14 @@ export default function BookingDetailPage() {
     }
     load()
   }, [id])
+
+  const isRider = currentUser?.id === booking?.rider_id
+  const isDriver = currentUser?.id === booking?.driver_id
+  const rideIsActive = booking?.ride_status === 'active'
+  const canReview = booking?.status === 'completed'
+
+  useDriverLocation(String(id), !!(isDriver && rideIsActive))
+  const { driverLocation, isDriverOnline } = useRideTracking(String(id), !!(isRider && rideIsActive))
 
   const handleReview = async () => {
     if (!booking) return
@@ -198,6 +209,51 @@ export default function BookingDetailPage() {
               {actionLoading ? 'Confirming...' : 'Confirm Booking'}
             </Button>
           )}
+
+          {isDriver && ['scheduled', 'confirmed', 'full'].includes(booking.ride_status || '') && (
+            <Button
+              disabled={actionLoading}
+              onClick={async () => {
+                setActionLoading(true)
+                try {
+                  await updateRideStatus(booking.ride_id, 'active')
+                  toast.success('Ride started!')
+                  const res = await getBooking(id)
+                  setBooking(res.data)
+                } catch (err: any) {
+                  toast.error(err.response?.data?.error || 'Failed to start ride')
+                } finally {
+                  setActionLoading(false)
+                }
+              }}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white"
+            >
+              {actionLoading ? 'Starting...' : 'Start Ride'}
+            </Button>
+          )}
+
+          {isDriver && rideIsActive && (
+            <Button
+              disabled={actionLoading}
+              onClick={async () => {
+                setActionLoading(true)
+                try {
+                  await updateRideStatus(booking.ride_id, 'completed')
+                  toast.success('Ride completed!')
+                  const res = await getBooking(id)
+                  setBooking(res.data)
+                } catch (err: any) {
+                  toast.error(err.response?.data?.error || 'Failed to complete ride')
+                } finally {
+                  setActionLoading(false)
+                }
+              }}
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+            >
+              {actionLoading ? 'Completing...' : 'End Ride'}
+            </Button>
+          )}
+
           <Button
             variant="destructive"
             disabled={actionLoading}
@@ -263,16 +319,21 @@ export default function BookingDetailPage() {
         </div>
       )}
 
-      {/* ── live tracking placeholder ── */}
-      {booking.status === 'confirmed' && (
+      {/* ── live tracking ── */}
+      {rideIsActive ? (
+        <div className="bg-white border rounded-xl p-5 space-y-4">
+          <h2 className="font-semibold text-slate-900 mb-2">
+            {isDriver ? 'Your location is being shared' : 'Driver location'}
+          </h2>
+          <LiveMap driverLocation={driverLocation} isDriverOnline={isDriverOnline} />
+        </div>
+      ) : booking.status === 'confirmed' && booking.ride_status !== 'completed' ? (
         <div className="bg-white border rounded-xl p-5">
-          {/* LIVE_MAP_PLACEHOLDER */}
-          <h2 className="font-semibold text-slate-900 mb-2">Live Tracking</h2>
           <p className="text-slate-400 text-sm">
-            Live tracking will appear here when the ride is active.
+            Live tracking will appear once the driver starts the ride.
           </p>
         </div>
-      )}
+      ) : null}
 
     </div>
   )
