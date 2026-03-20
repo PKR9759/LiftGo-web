@@ -68,7 +68,7 @@ export interface Booking {
   departure_at: string
   seats: number
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
-  ride_status?: 'active' | 'full' | 'cancelled' | 'completed' | 'scheduled'
+  ride_status?: 'active' | 'full' | 'cancelled' | 'completed'
   total_price: number
   created_at: string
 }

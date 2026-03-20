@@ -58,7 +58,7 @@ export const createRide = (data: {
 }) => client.post<Ride>('/api/rides', data)
 
 export const updateRideStatus = (id: string, status: 'active' | 'completed') =>
-  client.put<Ride>(`/api/rides/${id}/status`, { status })
+  client.put<{ message: string }>(`/api/rides/${id}/status`, { status })
 
 export const cancelRide = (id: string) =>
   client.delete(`/api/rides/${id}`)

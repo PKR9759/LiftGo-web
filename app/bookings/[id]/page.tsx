@@ -120,9 +120,6 @@ export default function BookingDetailPage() {
 
   if (!booking) return null
 
-  const isRider = currentUser?.id === booking.rider_id
-  const isDriver = currentUser?.id === booking.driver_id
-  const canReview = booking.status === 'completed'
   const departure = new Date(booking.departure_at)
 
   return (
@@ -210,7 +207,7 @@ export default function BookingDetailPage() {
             </Button>
           )}
 
-          {isDriver && ['scheduled', 'confirmed', 'full'].includes(booking.ride_status || '') && (
+          {isDriver && booking.status === 'confirmed' && ['active', 'full'].includes(booking.ride_status || '') && (
             <Button
               disabled={actionLoading}
               onClick={async () => {
