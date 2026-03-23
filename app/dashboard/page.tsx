@@ -14,9 +14,11 @@ import {
 } from '@/lib/api'
 import { getUser } from '@/lib/auth'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { toast } from 'sonner'
 import type { Ride, Seek, Booking } from '@/types'
 import { format } from 'date-fns'
+import { Bell, X } from 'lucide-react'
 
 const MapView = dynamic(
   () => import('@/components/map/MapView'),
@@ -37,6 +39,8 @@ const statusColor: Record<string, 'default' | 'secondary' | 'destructive' | 'out
 
 export default function DashboardPage() {
   const { ready } = useRequireAuth()
+  const { permission, isSubscribed, isLoading, subscribe } = usePushNotifications()
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
   const [user, setUser] = useState<any>(null)
   const [tab, setTab] = useState<Tab>('my-rides')
@@ -133,7 +137,31 @@ export default function DashboardPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
 
-      {/* header */}
+      {/* push notification banner */}
+      {!bannerDismissed && permission === 'default' && !isSubscribed && (
+        <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 mb-6">
+          <Bell className="h-5 w-5 text-indigo-500 shrink-0" />
+          <p className="text-sm text-indigo-800 flex-1">
+            Enable notifications to get instant booking alerts
+          </p>
+          <Button
+            size="sm"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+            onClick={subscribe}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Enabling…' : 'Enable'}
+          </Button>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            className="text-indigo-400 hover:text-indigo-600 shrink-0"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
