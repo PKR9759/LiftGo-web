@@ -97,11 +97,35 @@ export const getIncomingBookings = () =>
 export const getBooking = (id: string) =>
   client.get<Booking>(`/api/bookings/${id}`)
 
+export const getRideBookings = (rideId: string) =>
+  client.get<Booking[]>(`/api/rides/${rideId}/bookings`)
+
+export const startRide = (rideId: string) =>
+  client.put<{ message: string }>(`/api/rides/${rideId}/start-ride`)
+
 export const confirmBooking = (id: string) =>
   client.put<Booking>(`/api/bookings/${id}/confirm`)
 
 export const cancelBooking = (id: string) =>
   client.put<Booking>(`/api/bookings/${id}/cancel`)
+
+export const markRiderReady = (id: string, riderLat?: number, riderLng?: number) =>
+  client.put<Booking>(`/api/bookings/${id}/rider-ready`, {
+    rider_lat: riderLat,
+    rider_lng: riderLng
+  })
+
+export const markPickedUp = (id: string, driverLat: number, driverLng: number) =>
+  client.put<Booking>(`/api/bookings/${id}/picked-up`, {
+    driver_lat: driverLat,
+    driver_lng: driverLng
+  })
+
+export const markDropped = (id: string) =>
+  client.put<Booking>(`/api/bookings/${id}/dropped`)
+
+export const markNoShow = (id: string) =>
+  client.put<Booking>(`/api/bookings/${id}/no-show`)
 
 // ── reviews ───────────────────────────────────────────────
 export const createReview = (data: {

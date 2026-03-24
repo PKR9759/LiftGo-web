@@ -137,7 +137,8 @@ export default function DashboardPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
 
-      {/* push notification banner */}
+      {/* push notification banner (HIDDEN) */}
+      {/* 
       {!bannerDismissed && permission === 'default' && !isSubscribed && (
         <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 mb-6">
           <Bell className="h-5 w-5 text-indigo-500 shrink-0" />
@@ -161,6 +162,14 @@ export default function DashboardPage() {
           </button>
         </div>
       )}
+
+      {permission === 'denied' && (
+        <p className="text-xs text-muted-foreground mb-6">
+          Notifications are blocked. To enable: in Chrome go to Settings →
+          Notifications, in Brave click the shield icon in the address bar.
+        </p>
+      )}
+      */}
 
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -249,6 +258,9 @@ export default function DashboardPage() {
                       </p>
                     </div>
                     <div className="flex gap-2 shrink-0">
+                      <Link href={`/rides/${ride.id}/manage`}>
+                        <Button variant="default" size="sm">Manage</Button>
+                      </Link>
                       <Link href={`/rides/${ride.id}`}>
                         <Button variant="outline" size="sm">View</Button>
                       </Link>

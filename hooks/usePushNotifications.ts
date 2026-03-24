@@ -54,12 +54,25 @@ export function usePushNotifications() {
 
             if (result !== 'granted') return
 
+            if (!window.isSecureContext) {
+                toast.error('Push requires a Secure Context (HTTPS or localhost). LAN IPs hide Service Workers!')
+                return
+            }
+
             if (!('serviceWorker' in navigator)) {
                 toast.error('Push notifications not supported in this browser.')
                 return
             }
 
             const registration = await navigator.serviceWorker.ready
+
+            if (!registration.pushManager) {
+                toast.error(
+                    'Push notifications are not supported in this browser. ' +
+                    'Try Chrome or Firefox for full notification support.'
+                )
+                return
+            }
 
             const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
             if (!vapidKey) {
@@ -86,9 +99,8 @@ export function usePushNotifications() {
 
             setIsSubscribed(true)
             toast.success('Notifications enabled!')
-        } catch (err) {
-            console.error('Push subscription failed:', err)
-            toast.error('Failed to enable notifications.')
+        } catch (err: any) {
+            console.warn('Push subscription failed silently (disabled in development):', err)
         } finally {
             setIsLoading(false)
         }

@@ -31,7 +31,7 @@ export interface Ride {
   is_recurring: boolean
   recurrence_days?: number[]
   notes?: string
-  status: 'active' | 'full' | 'cancelled' | 'completed'
+  status: 'scheduled' | 'active' | 'full' | 'cancelled' | 'completed'
   created_at: string
 }
 
@@ -67,10 +67,21 @@ export interface Booking {
   dest_label: string
   departure_at: string
   seats: number
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
-  ride_status?: 'active' | 'full' | 'cancelled' | 'completed'
+  status: 'pending' | 'confirmed' | 'rider_ready' | 'picked_up' | 'no_show' | 'cancelled' | 'completed'
+  ride_status?: 'scheduled' | 'active' | 'full' | 'cancelled' | 'completed'
   total_price: number
+  picked_up_at?: string
+  dropped_at?: string
   created_at: string
+
+  // Extra fields when returned from driver booking list
+  rider_rating?: number
+  rider_origin_lat?: number
+  rider_origin_lng?: number
+  rider_dest_lat?: number
+  rider_dest_lng?: number
+  rider_ready_lat?: number
+  rider_ready_lng?: number
 }
 
 export interface Review {

@@ -1,11 +1,24 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Cookies from 'js-cookie'
 import { toast } from 'sonner'
 
-export function useDriverLocation(bookingId: string, enabled: boolean) {
+interface ChatMessage {
+    type: string
+    text: string
+    from: string
+}
+
+export function useDriverLocation(bookingId: string, enabled: boolean, onStatusUpdate?: () => void) {
     const retryCount = useRef(0)
     const watchId = useRef<number | null>(null)
     const ws = useRef<WebSocket | null>(null)
+    const [messages, setMessages] = useState<ChatMessage[]>([])
+
+    const sendMessage = (text: string) => {
+        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+            ws.current.send(JSON.stringify({ type: 'message', text }))
+        }
+    }
 
     useEffect(() => {
         if (typeof window === 'undefined' || !enabled || !bookingId) return
@@ -19,13 +32,19 @@ export function useDriverLocation(bookingId: string, enabled: boolean) {
                 return
             }
 
-            const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080'
+            const host = window.location.hostname
+            const defaultWsUrl = host === 'localhost' ? 'ws://localhost:8080' : `ws://${host}:8080`
+            const wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl
             const socket = new WebSocket(`${wsUrl}/ws/driver/${bookingId}?token=${token}`)
             ws.current = socket
 
             socket.onopen = () => {
                 retryCount.current = 0 // Reset on successful connection
                 // Start watching GPS position
+                if (!window.isSecureContext) {
+                    toast.error('Live Location requires a Secure Context (HTTPS or localhost). Testing via LAN IP will block GPS.')
+                    return
+                }
                 if (!navigator.geolocation) {
                     toast.error('Geolocation is not supported by your browser')
                     return
@@ -35,6 +54,7 @@ export function useDriverLocation(bookingId: string, enabled: boolean) {
                     (position) => {
                         if (ws.current && ws.current.readyState === WebSocket.OPEN) {
                             const payload = {
+                                type: 'location',
                                 lat: position.coords.latitude,
                                 lng: position.coords.longitude,
                             }
@@ -47,6 +67,19 @@ export function useDriverLocation(bookingId: string, enabled: boolean) {
                     },
                     { enableHighAccuracy: true }
                 )
+            }
+
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data)
+                    if (data.type === 'message') {
+                        setMessages((prev: ChatMessage[]) => [...prev, data as ChatMessage])
+                    } else if (data.type === 'status_update') {
+                        if (onStatusUpdate) onStatusUpdate()
+                    }
+                } catch (err) {
+                    console.error('Failed to parse chat message:', err)
+                }
             }
 
             socket.onclose = () => {
@@ -87,4 +120,6 @@ export function useDriverLocation(bookingId: string, enabled: boolean) {
             }
         }
     }, [bookingId, enabled])
+
+    return { messages, sendMessage }
 }

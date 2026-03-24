@@ -6,8 +6,9 @@ import { useParams, useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getBooking, createReview, confirmBooking, cancelBooking, updateRideStatus } from '@/lib/api'
+import { getBooking, createReview, confirmBooking, cancelBooking, updateRideStatus, markRiderReady } from '@/lib/api'
 import { getUser } from '@/lib/auth'
 import { toast } from 'sonner'
 import { useDriverLocation } from '@/hooks/useDriverLocation'
@@ -19,6 +20,9 @@ import { format } from 'date-fns'
 const statusColor: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   pending: 'outline',
   confirmed: 'default',
+  rider_ready: 'default',
+  picked_up: 'default',
+  no_show: 'destructive',
   cancelled: 'destructive',
   completed: 'secondary',
 }
@@ -61,18 +65,23 @@ export default function BookingDetailPage() {
   const [reviewed, setReviewed] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await getBooking(id)
-        setBooking(res.data)
-      } catch {
-        toast.error('Booking not found')
-      } finally {
-        setLoading(false)
-      }
+  const [msgText, setMsgText] = useState('')
+
+  const load = async () => {
+    try {
+      const res = await getBooking(id)
+      setBooking(res.data)
+    } catch {
+      toast.error('Booking not found')
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     load()
+    const interval = setInterval(load, 10000) // 10s fallback
+    return () => clearInterval(interval)
   }, [id])
 
   const isRider = currentUser?.id === booking?.rider_id
@@ -80,8 +89,11 @@ export default function BookingDetailPage() {
   const rideIsActive = booking?.ride_status === 'active'
   const canReview = booking?.status === 'completed'
 
-  useDriverLocation(String(id), !!(isDriver && rideIsActive))
-  const { driverLocation, isDriverOnline } = useRideTracking(String(id), !!(isRider && rideIsActive))
+  // Connect as soon as confirmed/ready/picked_up for chat/sync
+  const isTrackingSupported = ['confirmed', 'rider_ready', 'picked_up'].includes(booking?.status || '')
+
+  useDriverLocation(String(id), !!(isDriver && isTrackingSupported), load)
+  const { driverLocation, isDriverOnline, messages: chatMessages, sendMessage } = useRideTracking(String(id), !!(isRider && isTrackingSupported), load)
 
   const handleReview = async () => {
     if (!booking) return
@@ -107,6 +119,12 @@ export default function BookingDetailPage() {
     }
   }
 
+  const handleSendChat = () => {
+    if (!msgText.trim()) return
+    sendMessage(msgText)
+    setMsgText('')
+  }
+
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10">
@@ -122,21 +140,50 @@ export default function BookingDetailPage() {
 
   const departure = new Date(booking.departure_at)
 
+  // Timeline computation
+  const timelineSteps = [
+    { label: 'Confirmed', active: ['confirmed', 'rider_ready', 'picked_up', 'completed'].includes(booking.status) },
+    { label: 'Ready at Pickup', active: ['rider_ready', 'picked_up', 'completed'].includes(booking.status) },
+    { label: 'Picked Up', active: ['picked_up', 'completed'].includes(booking.status) },
+    { label: 'Drop Off', active: booking.status === 'completed' }
+  ]
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
 
       {/* header */}
       <div>
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-2xl font-bold text-slate-900">Booking details</h1>
-          <Badge variant={statusColor[booking.status]}>
-            {booking.status}
-          </Badge>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-900">Booking details</h1>
+            <Badge variant={statusColor[booking.status]}>
+              {booking.status}
+            </Badge>
+          </div>
+          {isDriver && (
+            <Button variant="outline" onClick={() => router.push(`/rides/${booking.ride_id}/manage`)}>Manage Ride</Button>
+          )}
         </div>
         <p className="text-slate-500 text-sm">
           Booked on {format(new Date(booking.created_at), 'dd MMM yyyy')}
         </p>
       </div>
+
+      {/* progress timeline */}
+      {['confirmed', 'rider_ready', 'picked_up'].includes(booking.status) && (
+        <div className="bg-white border rounded-xl p-5">
+          <div className="flexjustify-between items-center text-xs">
+            <div className="flex items-center justify-between w-full">
+              {timelineSteps.map((step, idx) => (
+                <div key={idx} className="flex flex-col items-center flex-1">
+                  <div className={`w-4 h-4 rounded-full mb-1 ${step.active ? 'bg-blue-600' : 'bg-slate-200'}`} />
+                  <span className={`text-[10px] sm:text-xs text-center ${step.active ? 'text-blue-700 font-medium' : 'text-slate-400'}`}>{step.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* route */}
       <div className="bg-white border rounded-xl p-5">
@@ -186,6 +233,44 @@ export default function BookingDetailPage() {
       {/* ── action buttons ── */}
       {['pending', 'confirmed'].includes(booking.status) && (
         <div className="bg-white border rounded-xl p-5 flex flex-wrap gap-3">
+
+          {isRider && booking.status === 'confirmed' && (
+            <Button
+              disabled={actionLoading}
+              onClick={async () => {
+                setActionLoading(true)
+                try {
+                  const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                      enableHighAccuracy: true,
+                      timeout: 10000,
+                      maximumAge: 0,
+                    })
+                  })
+                  await markRiderReady(id, position.coords.latitude, position.coords.longitude)
+                  const res = await getBooking(id)
+                  setBooking(res.data)
+                  toast.success("Driver notified you're ready!")
+                } catch (err: any) {
+                  if (err?.code === 1) {
+                    // GPS denied - still mark ready without location
+                    await markRiderReady(id)
+                    const res = await getBooking(id)
+                    setBooking(res.data)
+                    toast.success("Marked as ready — location unavailable")
+                  } else {
+                    toast.error('Failed to mark ready. Try again.')
+                  }
+                } finally {
+                  setActionLoading(false)
+                }
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 w-full mb-2"
+            >
+              I'm at the pickup point
+            </Button>
+          )}
+
           {isDriver && booking.status === 'pending' && (
             <Button
               disabled={actionLoading}
@@ -229,28 +314,6 @@ export default function BookingDetailPage() {
             </Button>
           )}
 
-          {isDriver && rideIsActive && (
-            <Button
-              disabled={actionLoading}
-              onClick={async () => {
-                setActionLoading(true)
-                try {
-                  await updateRideStatus(booking.ride_id, 'completed')
-                  toast.success('Ride completed!')
-                  const res = await getBooking(id)
-                  setBooking(res.data)
-                } catch (err: any) {
-                  toast.error(err.response?.data?.error || 'Failed to complete ride')
-                } finally {
-                  setActionLoading(false)
-                }
-              }}
-              className="bg-blue-500 hover:bg-blue-600 text-white"
-            >
-              {actionLoading ? 'Completing...' : 'End Ride'}
-            </Button>
-          )}
-
           <Button
             variant="destructive"
             disabled={actionLoading}
@@ -287,6 +350,7 @@ export default function BookingDetailPage() {
             </div>
           ) : (
             <div className="space-y-4">
+              ... review form truncated for brevity ...
               <div>
                 <Label className="text-sm mb-2 block">Rating</Label>
                 <ReviewStars rating={rating} onChange={setRating} />
@@ -316,18 +380,87 @@ export default function BookingDetailPage() {
         </div>
       )}
 
-      {/* ── live tracking ── */}
-      {rideIsActive ? (
+      {/* ── live tracking & chat ── */}
+      {rideIsActive && (isRider || isDriver) ? (
         <div className="bg-white border rounded-xl p-5 space-y-4">
-          <h2 className="font-semibold text-slate-900 mb-2">
-            {isDriver ? 'Your location is being shared' : 'Driver location'}
-          </h2>
-          <LiveMap driverLocation={driverLocation} isDriverOnline={isDriverOnline} />
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="font-semibold text-slate-900">
+              {isDriver ? 'Your location is being shared' : 'Live Tracking'}
+            </h2>
+            {isRider && isDriverOnline && <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Live</Badge>}
+          </div>
+
+          {isRider && (
+            <>
+              <LiveMap driverLocation={driverLocation} isDriverOnline={isDriverOnline} />
+
+              <div className="mt-6 border-t pt-4">
+                <h3 className="font-medium text-sm text-slate-700 mb-3">Quick Chat with Driver</h3>
+                <div className="bg-slate-50 rounded-lg py-3 border mb-3 flex flex-col gap-2">
+                  <div className="flex gap-2 overflow-x-auto pb-2 px-3 scrollbar-hide">
+                    {["Where are you?", "I'm at the exact pin", "Look for a person in a red shirt", "Okay, thanks!"].map((text) => (
+                      <button
+                        key={text}
+                        onClick={() => sendMessage(text)}
+                        className="
+                                  flex-shrink-0 px-3 py-1.5 text-xs font-medium
+                                  bg-white border border-slate-200 rounded-full
+                                  hover:bg-slate-50 hover:border-slate-300
+                                  active:scale-95 transition-all whitespace-nowrap
+                              "
+                      >
+                        {text}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-col gap-2 p-3 h-48 overflow-y-auto bg-slate-50 border rounded-xl mx-3">
+                    {chatMessages.length === 0 && (
+                      <p className="text-xs text-center text-slate-400 py-4">
+                        No messages yet. Use quick replies above to communicate.
+                      </p>
+                    )}
+                    {chatMessages.map((msg: any, index: number) => {
+                      const isMine = msg.from === 'rider'
+                      return (
+                        <div
+                          key={index}
+                          className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`
+                                          max-w-[75%] px-3 py-2 text-sm
+                                          ${isMine
+                                ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
+                                : 'bg-slate-200 text-slate-900 rounded-2xl rounded-bl-sm'
+                              }
+                                      `}
+                          >
+                            {msg.text}
+                            <span className={`
+                                          text-[10px] block mt-0.5
+                                          ${isMine ? 'text-blue-200 text-right' : 'text-slate-500'}
+                                      `}>
+                              {isMine ? 'You' : 'Driver'}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="flex gap-2 px-3">
+                    <Input value={msgText} onChange={e => setMsgText(e.target.value)} placeholder="Message driver..." onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat() }} className="h-9 text-sm" />
+                    <Button size="sm" className="h-9" onClick={handleSendChat}>Send</Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       ) : booking.status === 'confirmed' && booking.ride_status !== 'completed' ? (
         <div className="bg-white border rounded-xl p-5">
           <p className="text-slate-400 text-sm">
-            Live tracking will appear once the driver starts the ride.
+            Live tracking will appear once the ride starts.
           </p>
         </div>
       ) : null}
