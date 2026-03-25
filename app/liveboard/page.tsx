@@ -38,12 +38,12 @@ export default function HomePage() {
         getNearbyRides({
           origin_lat: o.lat, origin_lng: o.lng,
           dest_lat: d.lat, dest_lng: d.lng,
-          radius: 3000,
+          radius: 5000,
         }),
         getNearbySeeks({
           origin_lat: o.lat, origin_lng: o.lng,
           dest_lat: d.lat, dest_lng: d.lng,
-          radius: 3000,
+          radius: 5000,
         }),
       ])
       setRides(ridesRes.data)
