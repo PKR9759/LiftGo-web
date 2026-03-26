@@ -47,27 +47,65 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
   const [destResults, setDestResults] = useState<any[]>([])
   const [searching, setSearching] = useState<'origin' | 'dest' | null>(null)
 
+  // Suppress autocomplete after programmatic query changes (selection / map click)
+  const suppressOriginSearch = useRef(false)
+  const suppressDestSearch = useRef(false)
+
+  // Track if dropdowns should be visible (close on blur / select)
+  const [originDropdownOpen, setOriginDropdownOpen] = useState(false)
+  const [destDropdownOpen, setDestDropdownOpen] = useState(false)
+
+  // Refs for click-outside detection
+  const originBoxRef = useRef<HTMLDivElement>(null)
+  const destBoxRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdowns on click outside
   useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (originBoxRef.current && !originBoxRef.current.contains(e.target as Node)) {
+        setOriginDropdownOpen(false)
+      }
+      if (destBoxRef.current && !destBoxRef.current.contains(e.target as Node)) {
+        setDestDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (suppressOriginSearch.current) {
+      suppressOriginSearch.current = false
+      return
+    }
     if (debouncedOrigin.length >= 3) {
       setSearching('origin')
       autocompleteOla(debouncedOrigin).then(res => {
         setOriginResults(res)
+        setOriginDropdownOpen(res.length > 0)
         setSearching(null)
       })
     } else {
       setOriginResults([])
+      setOriginDropdownOpen(false)
     }
   }, [debouncedOrigin])
 
   useEffect(() => {
+    if (suppressDestSearch.current) {
+      suppressDestSearch.current = false
+      return
+    }
     if (debouncedDest.length >= 3) {
       setSearching('dest')
       autocompleteOla(debouncedDest).then(res => {
         setDestResults(res)
+        setDestDropdownOpen(res.length > 0)
         setSearching(null)
       })
     } else {
       setDestResults([])
+      setDestDropdownOpen(false)
     }
   }, [debouncedDest])
 
@@ -138,13 +176,17 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
         const updated: LatLng = { lat, lng, label: address }
         originRef.current = updated
         setLocalOrigin(updated)
+        suppressOriginSearch.current = true
         setOriginQuery(address)
+        setOriginDropdownOpen(false)
         onChangeRef.current(updated, destRef.current)
       } else {
         const updated: LatLng = { lat, lng, label: address }
         destRef.current = updated
         setLocalDest(updated)
+        suppressDestSearch.current = true
         setDestQuery(address)
+        setDestDropdownOpen(false)
         onChangeRef.current(originRef.current, updated)
       }
     })
@@ -208,7 +250,9 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
     const newOrigin: LatLng = { lat, lng, label }
     originRef.current = newOrigin
     setLocalOrigin(newOrigin)
+    suppressOriginSearch.current = true
     setOriginQuery(label)
+    setOriginDropdownOpen(false)
     onChangeRef.current(newOrigin, destRef.current)
 
     pickingRef.current = 'destination'
@@ -236,7 +280,9 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
     const newDest: LatLng = { lat, lng, label }
     destRef.current = newDest
     setLocalDest(newDest)
+    suppressDestSearch.current = true
     setDestQuery(label)
+    setDestDropdownOpen(false)
     onChangeRef.current(originRef.current, newDest)
 
     pickingRef.current = 'origin'
@@ -256,13 +302,17 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
     map.flyTo({ center: [lng, lat], zoom: 14 })
 
     if (type === 'origin') {
+      suppressOriginSearch.current = true
       placeOrigin(map, lat, lng, label)
       setOriginQuery(label)
       setOriginResults([])
+      setOriginDropdownOpen(false)
     } else {
+      suppressDestSearch.current = true
       placeDest(map, lat, lng, label)
       setDestQuery(label)
       setDestResults([])
+      setDestDropdownOpen(false)
     }
   }
 
@@ -280,10 +330,14 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
     pickingRef.current = 'origin'
     setLocalOrigin(null)
     setLocalDest(null)
+    suppressOriginSearch.current = true
+    suppressDestSearch.current = true
     setOriginQuery('')
     setDestQuery('')
     setOriginResults([])
     setDestResults([])
+    setOriginDropdownOpen(false)
+    setDestDropdownOpen(false)
     setPicking('origin')
     setRouteInfo(null)
     onChangeRef.current(null, null)
@@ -291,13 +345,13 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
 
   return (
     <div className="space-y-3">
-      {/* search boxes */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* search boxes — vertical on mobile, horizontal with swap on desktop */}
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
         {/* origin search */}
-        <div className="relative">
-          <div className={`flex items-center gap-2 border rounded-lg px-3 py-2
+        <div className="relative flex-1" ref={originBoxRef}>
+          <div className={`flex items-center gap-2 border rounded-lg px-3 py-2.5
             transition-colors ${picking === 'origin'
-              ? 'border-green-400 bg-green-50'
+              ? 'border-green-400 bg-green-50 ring-1 ring-green-200'
               : 'border-slate-200 bg-white'
             }`}
           >
@@ -306,38 +360,104 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
               type="text"
               placeholder="Search pickup in India..."
               value={originQuery}
-              onChange={e => setOriginQuery(e.target.value)}
+              onChange={e => {
+                suppressOriginSearch.current = false
+                setOriginQuery(e.target.value)
+              }}
               onFocus={() => {
                 pickingRef.current = 'origin'
                 setPicking('origin')
+                if (originResults.length > 0) setOriginDropdownOpen(true)
               }}
               className="flex-1 text-sm outline-none bg-transparent placeholder:text-slate-400 text-slate-900 min-w-0"
             />
-            {searching === 'origin' && <span className="text-xs text-slate-400 shrink-0">...</span>}
+            {searching === 'origin' && <span className="text-xs text-slate-400 shrink-0 animate-pulse">searching...</span>}
+            {originQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  suppressOriginSearch.current = true
+                  setOriginQuery('')
+                  setOriginResults([])
+                  setOriginDropdownOpen(false)
+                }}
+                className="text-slate-400 hover:text-slate-600 shrink-0 text-sm"
+                aria-label="Clear pickup"
+              >
+                ✕
+              </button>
+            )}
           </div>
 
-          {originResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
+          {originDropdownOpen && originResults.length > 0 && (
+            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border rounded-lg shadow-lg overflow-hidden max-h-60 overflow-y-auto">
               {originResults.map((r, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => selectResult(r, 'origin')}
-                  className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-b last:border-0 truncate"
+                  className="w-full text-left px-3 py-2.5 text-sm text-slate-700
+                    hover:bg-slate-50 active:bg-slate-100 border-b last:border-0
+                    flex flex-col gap-0.5 transition-colors"
                 >
-                  <span className="font-medium mr-1">{r.structured_formatting?.main_text || r.description}</span>
-                  <span className="text-xs text-slate-400">{r.structured_formatting?.secondary_text || ''}</span>
+                  <span className="font-medium truncate">{r.structured_formatting?.main_text || r.description}</span>
+                  {r.structured_formatting?.secondary_text && (
+                    <span className="text-xs text-slate-400 truncate">{r.structured_formatting.secondary_text}</span>
+                  )}
                 </button>
               ))}
             </div>
           )}
         </div>
 
+        {/* swap button — always visible */}
+        <div className="flex items-center justify-center -my-1.5 sm:my-0 sm:pt-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              // Swap origin and destination
+              const tempOrigin = originRef.current
+              const tempDest = destRef.current
+              const tempOriginQuery = originQuery
+              const tempDestQuery = destQuery
+
+              suppressOriginSearch.current = true
+              suppressDestSearch.current = true
+
+              setOriginQuery(tempDestQuery)
+              setDestQuery(tempOriginQuery)
+
+              originRef.current = tempDest
+              destRef.current = tempOrigin
+              setLocalOrigin(tempDest)
+              setLocalDest(tempOrigin)
+
+              const map = mapRef.current
+              if (map) {
+                if (originMarker.current) originMarker.current.remove()
+                if (destMarker.current) destMarker.current.remove()
+                if (tempDest) placeOrigin(map, tempDest.lat, tempDest.lng, tempDest.label)
+                if (tempOrigin) placeDest(map, tempOrigin.lat, tempOrigin.lng, tempOrigin.label)
+              }
+
+              onChangeRef.current(tempDest, tempOrigin)
+            }}
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200
+              flex items-center justify-center text-slate-500 hover:text-slate-700
+              transition-all text-sm border border-slate-200 hover:scale-110 active:scale-95"
+            aria-label="Swap origin and destination"
+            title="Swap origin and destination"
+          >
+            <span className="sm:hidden">⇅</span>
+            <span className="hidden sm:inline">⇄</span>
+          </button>
+        </div>
+
         {/* destination search */}
-        <div className="relative">
-          <div className={`flex items-center gap-2 border rounded-lg px-3 py-2
+        <div className="relative flex-1" ref={destBoxRef}>
+          <div className={`flex items-center gap-2 border rounded-lg px-3 py-2.5
             transition-colors ${picking === 'destination'
-              ? 'border-red-400 bg-red-50'
+              ? 'border-red-400 bg-red-50 ring-1 ring-red-200'
               : 'border-slate-200 bg-white'
             }`}
           >
@@ -346,27 +466,50 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
               type="text"
               placeholder="Search destination in India..."
               value={destQuery}
-              onChange={e => setDestQuery(e.target.value)}
+              onChange={e => {
+                suppressDestSearch.current = false
+                setDestQuery(e.target.value)
+              }}
               onFocus={() => {
                 pickingRef.current = 'destination'
                 setPicking('destination')
+                if (destResults.length > 0) setDestDropdownOpen(true)
               }}
               className="flex-1 text-sm outline-none bg-transparent placeholder:text-slate-400 text-slate-900 min-w-0"
             />
-            {searching === 'dest' && <span className="text-xs text-slate-400 shrink-0">...</span>}
+            {searching === 'dest' && <span className="text-xs text-slate-400 shrink-0 animate-pulse">searching...</span>}
+            {destQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  suppressDestSearch.current = true
+                  setDestQuery('')
+                  setDestResults([])
+                  setDestDropdownOpen(false)
+                }}
+                className="text-slate-400 hover:text-slate-600 shrink-0 text-sm"
+                aria-label="Clear destination"
+              >
+                ✕
+              </button>
+            )}
           </div>
 
-          {destResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
+          {destDropdownOpen && destResults.length > 0 && (
+            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border rounded-lg shadow-lg overflow-hidden max-h-60 overflow-y-auto">
               {destResults.map((r, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => selectResult(r, 'dest')}
-                  className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-b last:border-0 truncate"
+                  className="w-full text-left px-3 py-2.5 text-sm text-slate-700
+                    hover:bg-slate-50 active:bg-slate-100 border-b last:border-0
+                    flex flex-col gap-0.5 transition-colors"
                 >
-                  <span className="font-medium mr-1">{r.structured_formatting?.main_text || r.description}</span>
-                  <span className="text-xs text-slate-400">{r.structured_formatting?.secondary_text || ''}</span>
+                  <span className="font-medium truncate">{r.structured_formatting?.main_text || r.description}</span>
+                  {r.structured_formatting?.secondary_text && (
+                    <span className="text-xs text-slate-400 truncate">{r.structured_formatting.secondary_text}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -376,7 +519,7 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-400">
-          {picking === 'origin' ? 'Search or click map to set pickup' : 'Search or click map to set destination'}
+          {picking === 'origin' ? '📍 Search or click map to set pickup' : '📍 Search or click map to set destination'}
         </p>
         {(localOrigin || localDest) && (
           <button type="button" onClick={reset} className="text-xs text-slate-400 hover:text-slate-600 underline">
@@ -392,7 +535,7 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
       />
 
       {routeInfo && (
-        <div className="flex items-center gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="flex items-center gap-3 px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-lg">
           <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
           </svg>
@@ -403,13 +546,13 @@ export default function MapPicker({ onChange, height = '400px' }: Props) {
       )}
 
       {(localOrigin || localDest) && (
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className={`p-2 rounded-lg border ${localOrigin ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
-            <p className="font-medium text-green-700 mb-0.5">Pickup</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          <div className={`p-2.5 rounded-lg border ${localOrigin ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}>
+            <p className="font-medium text-green-700 mb-0.5">📍 Pickup</p>
             <p className="text-slate-600 truncate">{localOrigin ? localOrigin.label : 'Not set'}</p>
           </div>
-          <div className={`p-2 rounded-lg border ${localDest ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
-            <p className="font-medium text-red-700 mb-0.5">Destination</p>
+          <div className={`p-2.5 rounded-lg border ${localDest ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+            <p className="font-medium text-red-700 mb-0.5">📍 Destination</p>
             <p className="text-slate-600 truncate">{localDest ? localDest.label : 'Not set'}</p>
           </div>
         </div>
