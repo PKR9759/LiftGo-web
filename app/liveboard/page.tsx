@@ -85,7 +85,7 @@ export default function HomePage() {
     <div className="max-w-6xl mx-auto px-4 py-6">
 
       {/* header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Live ride board</h1>
           <p className="text-slate-500 text-sm mt-1">
@@ -222,7 +222,7 @@ export default function HomePage() {
       {/* selected ride detail */}
       {selectedRide && (
         <div className="mt-4 bg-white border rounded-xl p-5">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <h2 className="font-semibold text-slate-900">
@@ -264,7 +264,7 @@ export default function HomePage() {
                 </p>
               )}
             </div>
-            <div className="shrink-0 flex gap-2">
+            <div className="flex gap-2">
               <Link href={`/rides/${selectedRide.id}`}>
                 <Button size="sm">Book seat</Button>
               </Link>
@@ -283,7 +283,7 @@ export default function HomePage() {
       {/* selected seek detail */}
       {selectedSeek && (
         <div className="mt-4 bg-white border rounded-xl p-5">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <h2 className="font-semibold text-slate-900">

@@ -22,7 +22,7 @@ export default function LandingPage() {
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.15),transparent_50%)]" />
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(16,185,129,0.1),transparent_50%)]" />
 
-                <div className="relative max-w-6xl mx-auto px-4 pt-20 pb-32 text-center">
+                <div className="relative max-w-6xl mx-auto px-4 pt-12 pb-20 sm:pt-20 sm:pb-32 text-center">
                     {/* badge */}
                     <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 
             rounded-full px-4 py-1.5 mb-8 text-sm text-white/80">
@@ -73,7 +73,7 @@ export default function LandingPage() {
                     </div>
 
                     {/* stats row */}
-                    <div className="flex items-center justify-center gap-10 mt-16 text-white/70 text-sm">
+                    <div className="flex items-center justify-center gap-6 sm:gap-10 mt-10 sm:mt-16 text-white/70 text-sm flex-wrap">
                         <div className="text-center">
                             <p className="text-2xl font-bold text-white">100%</p>
                             <p>Free to use</p>
@@ -222,7 +222,7 @@ export default function LandingPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
                         {/* Drivers */}
-                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-10 text-white">
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-6 sm:p-10 text-white">
                             <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl" />
                             <span className="text-4xl mb-6 block">🚗</span>
                             <h3 className="text-2xl font-bold mb-4">For Drivers</h3>
@@ -252,7 +252,7 @@ export default function LandingPage() {
                         </div>
 
                         {/* Riders */}
-                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 p-10 text-white">
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 p-6 sm:p-10 text-white">
                             <div className="absolute top-0 right-0 w-40 h-40 bg-cyan-400/10 rounded-full blur-3xl" />
                             <span className="text-4xl mb-6 block">🧳</span>
                             <h3 className="text-2xl font-bold mb-4">For Riders</h3>

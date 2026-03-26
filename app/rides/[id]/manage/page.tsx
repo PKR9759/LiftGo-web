@@ -279,7 +279,7 @@ export default function ManageRidePage() {
 
     return (
         <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Manage Ride</h1>
                     <p className="text-sm text-slate-500 mt-1">{ride.origin_label} → {ride.dest_label}</p>
@@ -294,7 +294,7 @@ export default function ManageRidePage() {
                 </Badge>
             </div>
 
-            <div className="bg-white border rounded-xl p-5 shadow-sm flex justify-between items-center">
+            <div className="bg-white border rounded-xl p-5 shadow-sm flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
                 <div>
                     <p className="font-semibold">Departure: {format(new Date(ride.departure_at), 'hh:mm a')}</p>
                     <p className="text-xs text-slate-500">Date: {format(new Date(ride.departure_at), 'dd MMM yyyy')}</p>

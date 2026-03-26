@@ -26,10 +26,21 @@
 @layer base {
   * {
     border-color: var(--color-border);
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+  }
+
+  /* Ensure buttons and interactive elements have comfortable tap targets on mobile */
+  @media (max-width: 640px) {
+
+    button,
+    [role="button"],
+    a {
+      touch-action: manipulation;
+    }
   }
 }

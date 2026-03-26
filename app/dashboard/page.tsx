@@ -61,6 +61,11 @@ export default function DashboardPage() {
           getIncomingBookings(),
           getMyBookings(),
         ])
+        console.log("Current User:", user?.id, user?.email)
+        console.log("Rides:", ridesRes.data)
+        console.log(seeksRes.data)
+        console.log(incomingRes.data)
+        console.log(bookingsRes.data)
         setMyRides(ridesRes.data)
         setMySeeks(seeksRes.data)
         setIncoming(incomingRes.data)
@@ -171,7 +176,7 @@ export default function DashboardPage() {
       )}
       */}
 
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
           {user && (
@@ -240,10 +245,10 @@ export default function DashboardPage() {
             myRides.map(ride => (
               <div key={ride.id} className="bg-white border rounded-xl overflow-hidden">
                 <div className="p-5">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-semibold text-slate-900">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <p className="font-semibold text-slate-900 break-words">
                           {ride.origin_label} → {ride.dest_label}
                         </p>
                         <Badge variant={statusColor[ride.status]}>
@@ -257,7 +262,7 @@ export default function DashboardPage() {
                         {ride.available_seats}/{ride.total_seats} seats · ₹{ride.price_per_seat}/seat
                       </p>
                     </div>
-                    <div className="flex gap-2 shrink-0">
+                    <div className="flex gap-2 flex-wrap">
                       <Link href={`/rides/${ride.id}/manage`}>
                         <Button variant="default" size="sm">Manage</Button>
                       </Link>
@@ -296,7 +301,7 @@ export default function DashboardPage() {
           ) : (
             mySeeks.map(seek => (
               <div key={seek.id} className="bg-white border rounded-xl p-5">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-semibold text-slate-900">
@@ -342,7 +347,7 @@ export default function DashboardPage() {
           ) : (
             incoming.map(b => (
               <div key={b.id} className="bg-white border rounded-xl p-5">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-semibold text-slate-900">
@@ -357,7 +362,7 @@ export default function DashboardPage() {
                       {format(new Date(b.departure_at), 'dd MMM yyyy · hh:mm a')}
                     </p>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 flex-wrap">
                     {b.status === 'pending' && (
                       <Button size="sm" onClick={() => handleConfirm(b.id)}>
                         Confirm
@@ -388,7 +393,7 @@ export default function DashboardPage() {
           ) : (
             myBookings.map(b => (
               <div key={b.id} className="bg-white border rounded-xl p-5">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-semibold text-slate-900">
@@ -403,7 +408,7 @@ export default function DashboardPage() {
                       {format(new Date(b.departure_at), 'dd MMM yyyy · hh:mm a')}
                     </p>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 flex-wrap">
                     <Link href={`/bookings/${b.id}`}>
                       <Button variant="outline" size="sm">View</Button>
                     </Link>

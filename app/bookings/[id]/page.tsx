@@ -153,15 +153,15 @@ export default function BookingDetailPage() {
 
       {/* header */}
       <div>
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-900">Booking details</h1>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-1">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Booking details</h1>
             <Badge variant={statusColor[booking.status]}>
               {booking.status}
             </Badge>
           </div>
           {isDriver && (
-            <Button variant="outline" onClick={() => router.push(`/rides/${booking.ride_id}/manage`)}>Manage Ride</Button>
+            <Button variant="outline" size="sm" onClick={() => router.push(`/rides/${booking.ride_id}/manage`)}>Manage Ride</Button>
           )}
         </div>
         <p className="text-slate-500 text-sm">
@@ -172,7 +172,7 @@ export default function BookingDetailPage() {
       {/* progress timeline */}
       {['confirmed', 'rider_ready', 'picked_up'].includes(booking.status) && (
         <div className="bg-white border rounded-xl p-5">
-          <div className="flexjustify-between items-center text-xs">
+          <div className="flex justify-between items-center text-xs">
             <div className="flex items-center justify-between w-full">
               {timelineSteps.map((step, idx) => (
                 <div key={idx} className="flex flex-col items-center flex-1">

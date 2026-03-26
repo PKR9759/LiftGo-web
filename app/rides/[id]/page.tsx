@@ -16,23 +16,25 @@ import { format } from 'date-fns'
 
 const MapView = dynamic(
   () => import('@/components/map/MapView'),
-  { ssr: false, loading: () => (
-    <div className="h-64 rounded-xl border bg-slate-100 animate-pulse" />
-  )}
+  {
+    ssr: false, loading: () => (
+      <div className="h-64 rounded-xl border bg-slate-100 animate-pulse" />
+    )
+  }
 )
 
 export default function RideDetailPage() {
-  const { id }  = useParams<{ id: string }>()
-  const router  = useRouter()
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
 
-  const [ride,    setRide]    = useState<Ride | null>(null)
+  const [ride, setRide] = useState<Ride | null>(null)
   const [loading, setLoading] = useState(true)
-  const [seats,   setSeats]   = useState(1)
+  const [seats, setSeats] = useState(1)
   const [booking, setBooking] = useState(false)
 
   const currentUser = getUser()
-  const loggedIn    = isLoggedIn()
-  const isDriver    = currentUser?.id === ride?.driver_id
+  const loggedIn = isLoggedIn()
+  const isDriver = currentUser?.id === ride?.driver_id
 
   useEffect(() => {
     const load = async () => {
@@ -83,8 +85,8 @@ export default function RideDetailPage() {
 
       {/* header */}
       <div className="mb-6">
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-2xl font-bold text-slate-900">
+        <div className="flex items-center gap-3 mb-1 flex-wrap">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 break-words">
             {ride.origin_label} → {ride.dest_label}
           </h1>
           {ride.status !== 'active' && (
@@ -149,7 +151,7 @@ export default function RideDetailPage() {
             <div className="bg-white border rounded-xl p-5">
               <h2 className="font-semibold text-slate-900 mb-2">Recurring</h2>
               <div className="flex gap-2 flex-wrap">
-                {['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
                   .filter((_, i) => ride.recurrence_days?.includes(i))
                   .map(day => (
                     <span key={day}
