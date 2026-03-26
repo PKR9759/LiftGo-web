@@ -69,8 +69,8 @@ export default function LandingPage() {
                                     </Button>
                                 </Link>
                                 <Link href="/auth/login">
-                                    <Button size="lg" variant="outline" className="border-white/20 text-white
-                    hover:bg-white/5 px-8 py-6 text-base rounded-xl transition-all
+                                    <Button size="lg" variant="outline" className="border-white/30 text-white bg-transparent
+                    hover:bg-white/10 hover:border-white/50 px-8 py-6 text-base rounded-xl transition-all
                     hover:-translate-y-0.5">
                                         Log In
                                     </Button>
@@ -318,8 +318,8 @@ export default function LandingPage() {
                             </Button>
                         </Link>
                         <Link href="/auth/login">
-                            <Button size="lg" variant="outline" className="border-white/20 text-white
-                hover:bg-white/5 px-8 py-6 text-base rounded-xl transition-all
+                            <Button size="lg" variant="outline" className="border-white/30 text-white bg-transparent
+                hover:bg-white/10 hover:border-white/50 px-8 py-6 text-base rounded-xl transition-all
                 hover:-translate-y-0.5">
                                 Log In
                             </Button>
