@@ -34,28 +34,36 @@ export default function HomePage() {
   const [maxPrice, setMaxPrice] = useState<number | ''>('')
   const [minSeats, setMinSeats] = useState<number | ''>('')
 
-  const filterAndSort = <T extends { price_per_seat?: number; available_seats?: number; seats_needed?: number; departure_at: string }>(items: T[]) => {
+  const filterAndSort = <T extends { created_at: string }>(items: T[]) => {
     let result = [...items]
 
     if (maxPrice !== '') {
-      result = result.filter(i => (i.price_per_seat || 0) <= (maxPrice as number))
+      result = result.filter(i => {
+        const price = (i as any).price_per_seat
+        return price === undefined || price <= (maxPrice as number)
+      })
     }
     if (minSeats !== '') {
-      result = result.filter(i => (i.available_seats || i.seats_needed || 0) >= (minSeats as number))
+      result = result.filter(i => {
+        const seats = (i as any).available_seats || (i as any).seats_needed || 0
+        return seats >= (minSeats as number)
+      })
     }
 
     return result.sort((a, b) => {
       if (sortBy === 'price') {
-        const pa = a.price_per_seat || 0
-        const pb = b.price_per_seat || 0
+        const pa = (a as any).price_per_seat || 0
+        const pb = (b as any).price_per_seat || 0
         return pa - pb
       }
       if (sortBy === 'seats') {
-        const sa = a.available_seats || a.seats_needed || 0
-        const sb = b.available_seats || b.seats_needed || 0
-        return sb - sa // more seats first
+        const sa = (a as any).available_seats || (a as any).seats_needed || 0
+        const sb = (b as any).available_seats || (b as any).seats_needed || 0
+        return sb - sa
       }
-      return new Date(a.departure_at).getTime() - new Date(b.departure_at).getTime()
+      const ta = new Date((a as any).departure_at || (a as any).expires_at || a.created_at).getTime()
+      const tb = new Date((b as any).departure_at || (b as any).expires_at || b.created_at).getTime()
+      return ta - tb
     })
   }
 
@@ -231,14 +239,14 @@ export default function HomePage() {
                     ))}
                   </div>
                 ) : tab === 'rides' ? (
-                  <div className="divide-y">
+                  <div className="divide-y text-slate-900">
                     {filterAndSort(rides).length === 0 ? (
                       <EmptyResults
                         message={searched && (maxPrice || minSeats) ? "No rides match filters" : "No rides near this route"}
                         action={!maxPrice && !minSeats ? { label: 'Offer a ride', href: '/rides/new' } : undefined}
                       />
                     ) : (
-                      filterAndSort(rides).map(ride => (
+                      (filterAndSort(rides) as Ride[]).map(ride => (
                         <RideResult
                           key={ride.id}
                           ride={ride}
@@ -251,14 +259,14 @@ export default function HomePage() {
                     )}
                   </div>
                 ) : (
-                  <div className="divide-y">
+                  <div className="divide-y text-slate-900">
                     {filterAndSort(seeks).length === 0 ? (
                       <EmptyResults
                         message={searched && (maxPrice || minSeats) ? "No seeks match filters" : "No seekers near this route"}
                         action={!maxPrice && !minSeats ? { label: 'Post your need', href: '/seeks/new' } : undefined}
                       />
                     ) : (
-                      filterAndSort(seeks).map(seek => (
+                      (filterAndSort(seeks) as Seek[]).map(seek => (
                         <SeekResult
                           key={seek.id}
                           seek={seek}
@@ -308,9 +316,9 @@ export default function HomePage() {
                 <span>·</span>
                 <span className="font-semibold text-slate-900">₹{selectedRide.price_per_seat}</span>
               </div>
-              {selectedRide.description && (
-                <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg italic">
-                  "{selectedRide.description}"
+              {selectedRide.notes && (
+                <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg italic border-l-4 border-slate-200">
+                  "{selectedRide.notes}"
                 </p>
               )}
             </div>
@@ -347,11 +355,6 @@ export default function HomePage() {
                 <span className="mx-2">·</span>
                 <span>Expires {format(new Date(selectedSeek.expires_at), 'dd MMM · hh:mm a')}</span>
               </div>
-              {selectedSeek.description && (
-                <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg italic">
-                  "{selectedSeek.description}"
-                </p>
-              )}
             </div>
             <div className="flex flex-col gap-2 min-w-[140px]">
               <Button className="w-full" disabled>Offer ride (Coming soon)</Button>
@@ -370,7 +373,7 @@ function RideResult({ ride, selected, onClick }: { ride: Ride; selected: boolean
   return (
     <div
       onClick={onClick}
-      className={`p-4 cursor-pointer transition-all hover:bg-slate-50 ${selected ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : ''}`}
+      className={`p-4 cursor-pointer transition-all hover:bg-slate-50 border-b border-slate-100 last:border-0 ${selected ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : ''}`}
     >
       <div className="flex justify-between items-start mb-1">
         <p className="font-semibold text-slate-900 text-sm truncate pr-2">
@@ -383,7 +386,7 @@ function RideResult({ ride, selected, onClick }: { ride: Ride; selected: boolean
         <span>·</span>
         <span>{ride.available_seats} seats</span>
         {ride.status === 'active' && (
-          <Badge variant="default" className="bg-green-600 text-[9px] h-4 px-1 leading-none text-white">LIVE</Badge>
+          <Badge variant="default" className="bg-green-600 text-[9px] h-4 px-1 leading-none text-white font-bold">LIVE</Badge>
         )}
       </div>
     </div>
@@ -394,18 +397,18 @@ function SeekResult({ seek, selected, onClick }: { seek: Seek; selected: boolean
   return (
     <div
       onClick={onClick}
-      className={`p-4 cursor-pointer transition-all hover:bg-slate-50 ${selected ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : ''}`}
+      className={`p-4 cursor-pointer transition-all hover:bg-slate-50 border-b border-slate-100 last:border-0 ${selected ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : ''}`}
     >
       <div className="flex justify-between items-start mb-1">
         <p className="font-semibold text-slate-900 text-sm truncate pr-4">
           {seek.origin_label.split(',')[0]} → {seek.dest_label.split(',')[0]}
         </p>
-        <Badge variant="outline" className="text-[10px] h-4 px-1 leading-none text-slate-600">{seek.seats_needed} seats</Badge>
+        <Badge variant="outline" className="text-[10px] h-4 px-1 leading-none text-slate-600 font-medium">{seek.seats_needed} seats</Badge>
       </div>
       <div className="flex items-center gap-3 text-[11px] text-slate-500">
         <span>Expires {format(new Date(seek.expires_at), 'hh:mm a')}</span>
         {seek.is_recurring && (
-          <span className="text-emerald-600 font-medium ml-2">Recurring</span>
+          <span className="text-emerald-600 font-semibold ml-2">Recurring</span>
         )}
       </div>
     </div>
@@ -415,10 +418,10 @@ function SeekResult({ seek, selected, onClick }: { seek: Seek; selected: boolean
 function EmptyResults({ message, action }: { message: string; action?: { label: string; href: string } }) {
   return (
     <div className="p-10 text-center">
-      <p className="text-slate-400 text-sm mb-4">{message}</p>
+      <p className="text-slate-400 text-sm mb-4 leading-relaxed">{message}</p>
       {action && (
         <Link href={action.href}>
-          <Button variant="outline" size="sm" className="text-[11px] h-8">{action.label}</Button>
+          <Button variant="outline" size="sm" className="text-[11px] shadow-sm hover:shadow-md transition-shadow">{action.label}</Button>
         </Link>
       )}
     </div>
@@ -429,9 +432,9 @@ function MapSkeleton({ height }: { height: string }) {
   return (
     <div
       style={{ height }}
-      className="bg-slate-100 rounded-xl animate-pulse flex items-center justify-center p-6 text-center border"
+      className="bg-slate-100 rounded-xl animate-pulse flex items-center justify-center p-6 text-center border-2 border-dashed border-slate-200"
     >
-      <p className="text-slate-400 text-sm italic">Loading map...</p>
+      <p className="text-slate-400 text-sm font-medium italic">Loading map components...</p>
     </div>
   )
 }
