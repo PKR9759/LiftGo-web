@@ -323,9 +323,6 @@ export default function HomePage() {
               )}
             </div>
             <div className="flex flex-col gap-2 min-w-[140px]">
-              <Link href={`/bookings/new?ride_id=${selectedRide.id}`}>
-                <Button className="w-full">Book now</Button>
-              </Link>
               <Link href={`/rides/${selectedRide.id}`}>
                 <Button variant="outline" className="w-full text-xs">View details</Button>
               </Link>
