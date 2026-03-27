@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getRide, createBooking } from '@/lib/api'
+import { getRide, createBooking, getRideStatusSummary } from '@/lib/api'
 import { isLoggedIn, getUser } from '@/lib/auth'
 import { toast } from 'sonner'
 import type { Ride } from '@/types'
@@ -23,6 +23,14 @@ const MapView = dynamic(
   }
 )
 
+const rideBadgeStyle: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string; pulse?: boolean }> = {
+  scheduled: { variant: 'default', className: 'bg-blue-600' },
+  active: { variant: 'default', className: 'bg-green-600', pulse: true },
+  full: { variant: 'outline', className: 'border-yellow-400 text-yellow-700 bg-yellow-50' },
+  completed: { variant: 'secondary' },
+  cancelled: { variant: 'destructive' },
+}
+
 export default function RideDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -31,25 +39,40 @@ export default function RideDetailPage() {
   const [loading, setLoading] = useState(true)
   const [seats, setSeats] = useState(1)
   const [booking, setBooking] = useState(false)
+  const [summary, setSummary] = useState<any>(null)
 
   const currentUser = getUser()
   const loggedIn = isLoggedIn()
-  const isDriver = currentUser?.id === ride?.driver_id
+
+  const load = async () => {
+    try {
+      const res = await getRide(id)
+      setRide(res.data)
+
+      if (loggedIn) {
+        try {
+          const sRes = await getRideStatusSummary(id)
+          setSummary(sRes.data)
+        } catch (sErr: any) {
+          console.error('Failed to load ride status summary:', sErr)
+          // Don't redirect, just don't show the summary
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to load ride:', err)
+      toast.error('Ride not found')
+      router.push('/')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await getRide(id)
-        setRide(res.data)
-      } catch {
-        toast.error('Ride not found')
-        router.push('/')
-      } finally {
-        setLoading(false)
-      }
-    }
     load()
-  }, [id])
+  }, [id, loggedIn])
+
+  const isDriver = currentUser?.id === ride?.driver_id
+  const hasBooking = !!summary?.user_booking
 
   const handleBook = async () => {
     if (!loggedIn) { router.push('/auth/login'); return }
@@ -79,6 +102,7 @@ export default function RideDetailPage() {
   if (!ride) return null
 
   const departure = new Date(ride.departure_at)
+  const rb = rideBadgeStyle[ride.status] || { variant: 'secondary' as const }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
@@ -89,9 +113,10 @@ export default function RideDetailPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 break-words">
             {ride.origin_label} → {ride.dest_label}
           </h1>
-          {!['scheduled', 'active'].includes(ride.status) && (
-            <Badge variant="secondary">{ride.status}</Badge>
-          )}
+          <Badge variant={rb.variant} className={`${rb.className || ''} ${rb.pulse ? 'animate-pulse' : ''}`}>
+            {rb.pulse && <span className="w-1.5 h-1.5 rounded-full bg-white mr-1.5 inline-block" />}
+            {ride.status}
+          </Badge>
         </div>
         <p className="text-slate-500 text-sm">
           {format(departure, 'EEEE, dd MMMM yyyy')} at {format(departure, 'hh:mm a')}
@@ -174,11 +199,38 @@ export default function RideDetailPage() {
               ₹{ride.price_per_seat}
             </p>
             <p className="text-xs text-slate-400 mb-4">per seat</p>
-            <p className="text-sm text-slate-500 mb-4">
-              {ride.available_seats} seat{ride.available_seats !== 1 ? 's' : ''} left
-            </p>
 
-            {!isDriver && ['scheduled', 'active'].includes(ride.status) && (
+            <div className="space-y-1 mb-4">
+              <p className="text-sm text-slate-600 font-medium">
+                {ride.available_seats === 0
+                  ? <span className="text-red-600">Fully booked</span>
+                  : `${ride.available_seats} of ${ride.total_seats} seats available`
+                }
+              </p>
+            </div>
+
+            {hasBooking ? (
+              <div className="space-y-3">
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800 leading-relaxed">
+                  You already have a booking for this ride.
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => router.push(`/bookings/${summary.user_booking.id}`)}
+                >
+                  View your booking
+                </Button>
+              </div>
+            ) : isDriver ? (
+              <p className="text-xs text-slate-400 text-center py-2 bg-slate-50 rounded-lg border border-dashed">
+                This is your ride
+              </p>
+            ) : !['scheduled', 'active'].includes(ride.status) ? (
+              <p className="text-xs text-slate-400 text-center italic">
+                This ride is {ride.status}
+              </p>
+            ) : (
               <>
                 <div className="mb-3">
                   <Label className="text-xs text-slate-500 mb-1 block">
@@ -188,33 +240,25 @@ export default function RideDetailPage() {
                     type="number"
                     min={1}
                     max={ride.available_seats}
+                    disabled={ride.available_seats === 0}
                     value={seats}
                     onChange={e => setSeats(parseInt(e.target.value))}
                   />
                 </div>
                 <div className="flex items-center justify-between text-sm mb-4">
                   <span className="text-slate-500">Total</span>
-                  <span className="font-semibold">
+                  <span className="font-semibold text-lg">
                     ₹{(ride.price_per_seat * seats).toFixed(0)}
                   </span>
                 </div>
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  onClick={handleBook}
+                  disabled={booking || seats < 1 || seats > ride.available_seats || ride.available_seats === 0}
+                >
+                  {booking ? 'Booking...' : loggedIn ? 'Request seat' : 'Log in to book'}
+                </Button>
               </>
-            )}
-
-            {isDriver ? (
-              <p className="text-xs text-slate-400 text-center">This is your ride</p>
-            ) : !['scheduled', 'active'].includes(ride.status) ? (
-              <p className="text-xs text-slate-400 text-center">
-                This ride is {ride.status}
-              </p>
-            ) : (
-              <Button
-                className="w-full"
-                onClick={handleBook}
-                disabled={booking || seats < 1 || seats > ride.available_seats}
-              >
-                {booking ? 'Booking...' : loggedIn ? 'Request seat' : 'Log in to book'}
-              </Button>
             )}
 
           </div>

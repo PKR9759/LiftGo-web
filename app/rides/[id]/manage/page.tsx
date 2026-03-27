@@ -5,48 +5,66 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { getRide, getRideBookings, startRide, markPickedUp, markDropped, markNoShow } from '@/lib/api'
+import { getRide, getRideBookings, startRide, cancelRide, markPickedUp, markDropped, markNoShow, confirmBooking, cancelBooking, getRideStatusSummary } from '@/lib/api'
 import { getUser } from '@/lib/auth'
 import { toast } from 'sonner'
 import type { Ride, Booking } from '@/types'
 import { format } from 'date-fns'
 import { useDriverLocation } from '@/hooks/useDriverLocation'
 import LiveMap from '@/components/map/LiveMap'
-
 import { haversineDistance } from '@/lib/utils'
 
-// A sub-component to handle actions per booking
+// Fix 7 — consistent badge colors
+const bookingBadgeStyle: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string }> = {
+    pending: { variant: 'outline', className: 'border-yellow-400 text-yellow-700 bg-yellow-50' },
+    confirmed: { variant: 'default', className: 'bg-blue-600' },
+    rider_ready: { variant: 'default', className: 'bg-purple-600' },
+    picked_up: { variant: 'default', className: 'bg-green-600' },
+    completed: { variant: 'secondary' },
+    cancelled: { variant: 'destructive' },
+    no_show: { variant: 'outline', className: 'border-orange-400 text-orange-700 bg-orange-50' },
+}
+
+const rideBadgeStyle: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string; pulse?: boolean }> = {
+    scheduled: { variant: 'default', className: 'bg-blue-600' },
+    active: { variant: 'default', className: 'bg-green-600', pulse: true },
+    full: { variant: 'outline', className: 'border-yellow-400 text-yellow-700 bg-yellow-50' },
+    completed: { variant: 'secondary' },
+    cancelled: { variant: 'destructive' },
+}
+
+type StatusSummary = {
+    ride: {
+        id: string; status: string; departure_at: string
+        available_seats: number; total_seats: number
+        minutes_until_departure: number
+        can_cancel: boolean; can_start: boolean
+        cancellation_deadline: string
+    }
+    user_booking: any
+}
+
+// Fix 6 — per-booking action buttons
 function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
-    const [chatOpen, setChatOpen] = useState(false)
-    const [msgText, setMsgText] = useState('')
     const [actionLoading, setActionLoading] = useState(false)
 
-    // Look for confirmed bookings to start chat early
-    const isActiveTracker = ['confirmed', 'rider_ready', 'picked_up'].includes(booking.status)
-
-    const { messages: chatMessages, sendMessage } = useDriverLocation(
-        String(booking.id),
-        isActiveTracker,
-        onUpdate
-    )
-
-    const handleAction = async (action: 'pickup' | 'drop' | 'noshow') => {
+    const handleAction = async (action: 'confirm' | 'decline' | 'pickup' | 'drop' | 'noshow') => {
         setActionLoading(true)
         try {
-            if (action === 'pickup') {
+            if (action === 'confirm') {
+                await confirmBooking(booking.id)
+                toast.success(`Confirmed ${booking.rider_name}'s booking!`)
+            } else if (action === 'decline') {
+                await cancelBooking(booking.id)
+                toast.success(`Declined ${booking.rider_name}'s booking.`)
+            } else if (action === 'pickup') {
                 const position = await new Promise<GeolocationPosition>((resolve, reject) => {
                     navigator.geolocation.getCurrentPosition(resolve, reject, {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0 // never use cached position
+                        enableHighAccuracy: true, timeout: 10000, maximumAge: 0
                     })
                 })
-
-                const { latitude, longitude } = position.coords
-                await markPickedUp(booking.id, latitude, longitude)
+                await markPickedUp(booking.id, position.coords.latitude, position.coords.longitude)
                 toast.success(`Picked up ${booking.rider_name}!`)
-                onUpdate()
-                return
             } else if (action === 'drop') {
                 await markDropped(booking.id)
                 toast.success(`Dropped ${booking.rider_name}!`)
@@ -70,25 +88,21 @@ function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
                 toast.error(err.response?.data?.error || 'Action failed')
             }
         } finally {
-            if (action !== 'pickup') setActionLoading(false)
-            else setActionLoading(false)
+            setActionLoading(false)
         }
     }
 
-    const handleSend = () => {
-        if (!msgText.trim()) return
-        sendMessage(msgText)
-        setMsgText('')
-    }
-
-    const quickMessages = ["I'm on my way", "I'm 2 minutes away", "I've arrived at pickup", "Please come to the main road", "Stuck in traffic"]
-
-    const distance = driverPos && booking.origin_lat != null && booking.origin_lng != null
-        ? haversineDistance(
-            driverPos,
-            { lat: Number(booking.origin_lat), lng: Number(booking.origin_lng) }
-        )
+    const distance = driverPos && booking.rider_ready_lat != null && booking.rider_ready_lng != null
+        ? haversineDistance(driverPos, { lat: Number(booking.rider_ready_lat), lng: Number(booking.rider_ready_lng) })
         : null
+
+    const bb = bookingBadgeStyle[booking.status] || { variant: 'secondary' as const }
+
+    // Fix 6 — determine which action buttons to show based on booking + ride status
+    const showConfirmDecline = booking.status === 'pending' && rideStatus === 'scheduled'
+    const showPickupNoshow = ['confirmed', 'rider_ready'].includes(booking.status) && rideStatus === 'active'
+    const showDropoff = booking.status === 'picked_up' && rideStatus === 'active'
+    const isTerminal = ['completed', 'cancelled', 'no_show'].includes(booking.status)
 
     return (
         <div className="bg-white border rounded-xl p-4 flex flex-col gap-3">
@@ -97,96 +111,38 @@ function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
                     <p className="font-semibold">{booking.rider_name} <span className="text-slate-400 text-xs font-normal">({booking.seats} seats)</span></p>
                     <p className="text-xs text-slate-500 mt-1">From: {booking.origin_label}</p>
                     <p className="text-xs text-slate-500">To: {booking.dest_label}</p>
-                    {booking.status !== 'picked_up' && (
+                    {!isTerminal && booking.status !== 'picked_up' && (
                         <span className="text-xs font-semibold mt-1 inline-block text-indigo-600">
                             {distance !== null
-                                ? distance < 200
-                                    ? '✓ Within pickup range'
-                                    : `${Math.round(distance)}m away`
-                                : 'Location unavailable'
-                            }
+                                ? distance < 200 ? '✓ Within pickup range' : `${Math.round(distance)}m away`
+                                : 'Location unavailable'}
                         </span>
                     )}
                 </div>
-                <Badge variant={booking.status === 'completed' ? 'secondary' : booking.status === 'cancelled' || booking.status === 'no_show' ? 'destructive' : 'default'}>
-                    {booking.status}
+                <Badge variant={bb.variant} className={bb.className}>
+                    {booking.status.replace('_', ' ')}
                 </Badge>
             </div>
 
             <div className="flex flex-wrap gap-2 mt-2">
-                {booking.status === 'rider_ready' && (
-                    <Button size="sm" onClick={() => handleAction('pickup')} disabled={actionLoading}>Pick Up</Button>
+                {showConfirmDecline && (
+                    <>
+                        <Button size="sm" onClick={() => handleAction('confirm')} disabled={actionLoading}>Confirm</Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleAction('decline')} disabled={actionLoading}>Decline</Button>
+                    </>
                 )}
-                {booking.status === 'picked_up' && (
+                {showPickupNoshow && (
+                    <>
+                        {booking.status === 'rider_ready' && (
+                            <Button size="sm" onClick={() => handleAction('pickup')} disabled={actionLoading}>Pick Up</Button>
+                        )}
+                        <Button size="sm" variant="destructive" onClick={() => handleAction('noshow')} disabled={actionLoading}>No Show</Button>
+                    </>
+                )}
+                {showDropoff && (
                     <Button size="sm" onClick={() => handleAction('drop')} disabled={actionLoading} className="bg-emerald-600 hover:bg-emerald-700 text-white">Drop Off</Button>
                 )}
-                {['confirmed', 'rider_ready'].includes(booking.status) && (
-                    <Button size="sm" variant="destructive" onClick={() => handleAction('noshow')} disabled={actionLoading}>No Show</Button>
-                )}
-                {isActiveTracker && (
-                    <Button size="sm" variant="outline" onClick={() => setChatOpen(!chatOpen)}>Chat {chatMessages.length > 0 && `(${chatMessages.length})`}</Button>
-                )}
             </div>
-
-            {chatOpen && (
-                <div className="bg-slate-50 border border-slate-200 mt-2 py-3 rounded flex flex-col gap-2">
-                    <div className="flex gap-2 overflow-x-auto pb-2 px-3 scrollbar-hide">
-                        {quickMessages.map((text) => (
-                            <button
-                                key={text}
-                                onClick={() => sendMessage(text)}
-                                className="
-                                    flex-shrink-0 px-3 py-1.5 text-xs font-medium
-                                    bg-white border border-slate-200 rounded-full
-                                    hover:bg-slate-50 hover:border-slate-300
-                                    active:scale-95 transition-all whitespace-nowrap
-                                "
-                            >
-                                {text}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="flex flex-col gap-2 p-3 h-48 overflow-y-auto bg-slate-50 border rounded-xl mx-3">
-                        {chatMessages.length === 0 && (
-                            <p className="text-xs text-center text-muted-foreground py-4">
-                                No messages yet. Use quick replies above to communicate.
-                            </p>
-                        )}
-                        {chatMessages.map((msg: any, index: number) => {
-                            const isMine = msg.from === 'driver'
-                            return (
-                                <div
-                                    key={index}
-                                    className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
-                                >
-                                    <div
-                                        className={`
-                                            max-w-[75%] px-3 py-2 text-sm
-                                            ${isMine
-                                                ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
-                                                : 'bg-slate-200 text-slate-900 rounded-2xl rounded-bl-sm'
-                                            }
-                                        `}
-                                    >
-                                        {msg.text}
-                                        <span className={`
-                                            text-[10px] block mt-0.5
-                                            ${isMine ? 'text-blue-200 text-right' : 'text-slate-500'}
-                                        `}>
-                                            {isMine ? 'Driver' : 'Rider'}
-                                        </span>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                    <div className="flex gap-2 px-3">
-                        <Input value={msgText} onKeyDown={(e) => { if (e.key === 'Enter') handleSend() }} onChange={e => setMsgText(e.target.value)} placeholder="Message rider..." className="h-8 text-sm" />
-                        <Button size="sm" onClick={handleSend}>Send</Button>
-                    </div>
-                </div>
-            )}
         </div>
     )
 }
@@ -202,6 +158,8 @@ export default function ManageRidePage() {
     const [actionLoading, setActionLoading] = useState(false)
     const [lastUpdated, setLastUpdated] = useState<number | null>(null)
     const [currentTime, setCurrentTime] = useState<number>(Date.now())
+    const [summary, setSummary] = useState<StatusSummary | null>(null)
+    const [countdown, setCountdown] = useState(0)
 
     const loadData = async () => {
         try {
@@ -224,20 +182,35 @@ export default function ManageRidePage() {
         }
     }
 
-    // Polling effect
+    const loadSummary = async () => {
+        try {
+            const res = await getRideStatusSummary(id)
+            setSummary(res.data)
+            setCountdown(0)
+        } catch { /* ignore */ }
+    }
+
     useEffect(() => {
         loadData()
-        const interval = setInterval(() => {
-            loadData()
-        }, 5000)
+        loadSummary()
+        const interval = setInterval(() => { loadData(); loadSummary() }, 5000)
         return () => clearInterval(interval)
     }, [id])
 
-    // UI timer
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(Date.now()), 1000)
         return () => clearInterval(timer)
     }, [])
+
+    // Fix 9 — countdown
+    useEffect(() => {
+        const timer = setInterval(() => setCountdown(prev => prev + 1), 60000)
+        return () => clearInterval(timer)
+    }, [])
+
+    const minutesUntilDeparture = summary ? summary.ride.minutes_until_departure - countdown : null
+    const canCancel = summary?.ride.can_cancel ?? false
+    const canStart = summary?.ride.can_start ?? false
 
     useEffect(() => {
         if (ride?.status === 'active') {
@@ -248,7 +221,6 @@ export default function ManageRidePage() {
             })
         }
     }, [ride?.status])
-
 
     const [driverPos, setDriverPos] = useState<{ lat: number, lng: number, timestamp: number } | null>(null)
     useEffect(() => {
@@ -267,6 +239,7 @@ export default function ManageRidePage() {
             await startRide(id)
             toast.success('Ride started! Live tracking enabled.')
             loadData()
+            loadSummary()
         } catch (err: any) {
             toast.error(err.response?.data?.error || 'Failed to start ride')
         } finally {
@@ -274,8 +247,24 @@ export default function ManageRidePage() {
         }
     }
 
+    const handleCancelRide = async () => {
+        setActionLoading(true)
+        try {
+            await cancelRide(id)
+            toast.success('Ride cancelled')
+            loadData()
+            loadSummary()
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || 'Failed to cancel ride')
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
     if (loading && !ride) return <div className="p-10 text-center animate-pulse">Loading manage portal...</div>
     if (!ride) return null
+
+    const rb = rideBadgeStyle[ride.status] || { variant: 'secondary' as const }
 
     return (
         <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
@@ -289,21 +278,67 @@ export default function ManageRidePage() {
                         </p>
                     )}
                 </div>
-                <Badge variant={ride.status === 'active' ? 'default' : 'secondary'} className="text-sm px-3 py-1">
+                <Badge variant={rb.variant} className={`text-sm px-3 py-1 ${rb.className || ''} ${rb.pulse ? 'animate-pulse' : ''}`}>
+                    {rb.pulse && <span className="w-1.5 h-1.5 rounded-full bg-white mr-1.5 inline-block" />}
                     {ride.status.toUpperCase()}
                 </Badge>
             </div>
 
+            {/* Fix 8 — seats display */}
+            {summary && (
+                <div className="bg-white border rounded-xl p-4">
+                    <p className="text-sm text-slate-600">
+                        {summary.ride.available_seats === 0
+                            ? <span className="font-semibold text-red-600">Fully booked</span>
+                            : <><span className="font-semibold">{summary.ride.available_seats}</span> of {summary.ride.total_seats} seats available</>
+                        }
+                    </p>
+                </div>
+            )}
+
+            {/* Fix 6 — ride-level actions */}
             <div className="bg-white border rounded-xl p-5 shadow-sm flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
                 <div>
                     <p className="font-semibold">Departure: {format(new Date(ride.departure_at), 'hh:mm a')}</p>
                     <p className="text-xs text-slate-500">Date: {format(new Date(ride.departure_at), 'dd MMM yyyy')}</p>
+                    {minutesUntilDeparture != null && minutesUntilDeparture > 0 && (
+                        <p className="text-xs text-slate-400 mt-1">
+                            {minutesUntilDeparture > 60
+                                ? `${Math.floor(minutesUntilDeparture / 60)}h ${minutesUntilDeparture % 60}m until departure`
+                                : `${minutesUntilDeparture} min until departure`}
+                        </p>
+                    )}
                 </div>
-                {ride.status === 'scheduled' && (
-                    <Button onClick={handleStartRide} disabled={actionLoading} className="bg-emerald-600 hover:bg-emerald-700">
-                        {actionLoading ? 'Starting...' : 'Start Ride'}
-                    </Button>
-                )}
+                <div className="flex gap-2 flex-wrap">
+                    {ride.status === 'scheduled' && (
+                        <>
+                            <div className="flex flex-col items-center gap-1">
+                                <Button
+                                    onClick={handleStartRide}
+                                    disabled={actionLoading || !canStart}
+                                    className="bg-emerald-600 hover:bg-emerald-700"
+                                >
+                                    {actionLoading ? 'Starting...' : 'Start Ride'}
+                                </Button>
+                                {!canStart && minutesUntilDeparture != null && minutesUntilDeparture > 30 && (
+                                    <p className="text-[10px] text-slate-400">Unlocks in {minutesUntilDeparture - 30} min</p>
+                                )}
+                            </div>
+                            <div className="flex flex-col items-center gap-1">
+                                <Button
+                                    variant="destructive"
+                                    onClick={handleCancelRide}
+                                    disabled={actionLoading || !canCancel}
+                                >
+                                    Cancel Ride
+                                </Button>
+                                {!canCancel && (
+                                    <p className="text-[10px] text-slate-400">Locked — too close to departure</p>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             {ride.status === 'active' && driverPos && (
@@ -318,8 +353,7 @@ export default function ManageRidePage() {
                             lng: Number(b.rider_ready_lng),
                             name: b.rider_name,
                             status: b.status,
-                        }))
-                    }
+                        }))}
                 />
             )}
 
@@ -332,7 +366,7 @@ export default function ManageRidePage() {
                 ) : (
                     <div className="space-y-4">
                         {bookings.map(b => (
-                            <BookingManager key={b.id} booking={b} onUpdate={loadData} driverPos={driverPos} rideStatus={ride.status} />
+                            <BookingManager key={b.id} booking={b} onUpdate={() => { loadData(); loadSummary() }} driverPos={driverPos} rideStatus={ride.status} />
                         ))}
                     </div>
                 )}

@@ -103,6 +103,21 @@ export const getRideBookings = (rideId: string) =>
 export const startRide = (rideId: string) =>
   client.put<{ message: string }>(`/api/rides/${rideId}/start-ride`)
 
+export const getRideStatusSummary = (rideId: string) =>
+  client.get<{
+    ride: {
+      id: string; status: string; departure_at: string
+      available_seats: number; total_seats: number
+      minutes_until_departure: number
+      can_cancel: boolean; can_start: boolean
+      cancellation_deadline: string
+    }
+    user_booking: {
+      id: string; status: string; seats: number
+      can_cancel: boolean; can_mark_ready: boolean
+    } | null
+  }>(`/api/rides/${rideId}/status-summary`)
+
 export const confirmBooking = (id: string) =>
   client.put<Booking>(`/api/bookings/${id}/confirm`)
 

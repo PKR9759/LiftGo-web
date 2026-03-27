@@ -27,15 +27,26 @@ const MapView = dynamic(
 
 type Tab = 'my-rides' | 'my-seeks' | 'incoming' | 'my-bookings'
 
-const statusColor: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  pending: 'outline',
-  confirmed: 'default',
-  cancelled: 'destructive',
-  completed: 'secondary',
-  scheduled: 'default',
-  active: 'default',
-  matched: 'secondary',
-  expired: 'destructive',
+const statusColor: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string }> = {
+  // Booking statuses
+  pending: { variant: 'outline', className: 'border-yellow-400 text-yellow-700 bg-yellow-50' },
+  confirmed: { variant: 'default', className: 'bg-blue-600' },
+  rider_ready: { variant: 'default', className: 'bg-purple-600' },
+  picked_up: { variant: 'default', className: 'bg-green-600 text-white' },
+  no_show: { variant: 'outline', className: 'border-orange-400 text-orange-700 bg-orange-50' },
+
+  // Generic / Shared statuses
+  cancelled: { variant: 'destructive' },
+  completed: { variant: 'secondary' },
+
+  // Ride statuses
+  scheduled: { variant: 'default', className: 'bg-blue-600' },
+  active: { variant: 'default', className: 'bg-green-600 text-white' },
+  full: { variant: 'outline', className: 'border-yellow-400 text-yellow-700 bg-yellow-50' },
+
+  // Seek statuses
+  matched: { variant: 'secondary' },
+  expired: { variant: 'destructive' },
 }
 
 export default function DashboardPage() {
@@ -252,7 +263,10 @@ export default function DashboardPage() {
                         <p className="font-semibold text-slate-900 break-words">
                           {ride.origin_label} → {ride.dest_label}
                         </p>
-                        <Badge variant={statusColor[ride.status]}>
+                        <Badge
+                          variant={statusColor[ride.status]?.variant || 'secondary'}
+                          className={statusColor[ride.status]?.className}
+                        >
                           {ride.status}
                         </Badge>
                       </div>
@@ -308,7 +322,10 @@ export default function DashboardPage() {
                       <p className="font-semibold text-slate-900">
                         {seek.origin_label} → {seek.dest_label}
                       </p>
-                      <Badge variant={statusColor[seek.status]}>
+                      <Badge
+                        variant={statusColor[seek.status]?.variant || 'secondary'}
+                        className={statusColor[seek.status]?.className}
+                      >
                         {seek.status}
                       </Badge>
                     </div>
@@ -354,7 +371,12 @@ export default function DashboardPage() {
                       <p className="font-semibold text-slate-900">
                         {b.origin_label} → {b.dest_label}
                       </p>
-                      <Badge variant={statusColor[b.status]}>{b.status}</Badge>
+                      <Badge
+                        variant={statusColor[b.status]?.variant || 'secondary'}
+                        className={statusColor[b.status]?.className}
+                      >
+                        {b.status.replace('_', ' ')}
+                      </Badge>
                     </div>
                     <p className="text-sm text-slate-500">
                       Rider: {b.rider_name} · {b.seats} seat{b.seats !== 1 ? 's' : ''} · ₹{b.total_price}
@@ -400,7 +422,12 @@ export default function DashboardPage() {
                       <p className="font-semibold text-slate-900">
                         {b.origin_label} → {b.dest_label}
                       </p>
-                      <Badge variant={statusColor[b.status]}>{b.status}</Badge>
+                      <Badge
+                        variant={statusColor[b.status]?.variant || 'secondary'}
+                        className={statusColor[b.status]?.className}
+                      >
+                        {b.status.replace('_', ' ')}
+                      </Badge>
                     </div>
                     <p className="text-sm text-slate-500">
                       Driver: {b.driver_name} · {b.seats} seat{b.seats !== 1 ? 's' : ''} · ₹{b.total_price}

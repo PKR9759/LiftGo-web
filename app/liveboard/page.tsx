@@ -228,9 +228,16 @@ export default function HomePage() {
                 <h2 className="font-semibold text-slate-900">
                   {selectedRide.origin_label} → {selectedRide.dest_label}
                 </h2>
-                <Badge variant={
-                  ['scheduled', 'active'].includes(selectedRide.status) ? 'default' : 'secondary'
-                }>
+                <Badge
+                  variant={selectedRide.status === 'cancelled' ? 'destructive' : selectedRide.status === 'completed' ? 'secondary' : selectedRide.status === 'full' ? 'outline' : 'default'}
+                  className={
+                    selectedRide.status === 'scheduled' ? 'bg-blue-600' :
+                      selectedRide.status === 'active' ? 'bg-green-600 animate-pulse' :
+                        selectedRide.status === 'full' ? 'border-yellow-400 text-yellow-700 bg-yellow-50' :
+                          ''
+                  }
+                >
+                  {selectedRide.status === 'active' && <span className="w-1.5 h-1.5 rounded-full bg-white mr-1.5 inline-block" />}
                   {selectedRide.status}
                 </Badge>
               </div>
