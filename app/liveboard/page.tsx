@@ -30,6 +30,35 @@ export default function HomePage() {
 
   const searchRef = useRef<(o: LatLng, d: LatLng) => void>(null)
 
+  const [sortBy, setSortBy] = useState<'soonest' | 'price' | 'seats'>('soonest')
+  const [maxPrice, setMaxPrice] = useState<number | ''>('')
+  const [minSeats, setMinSeats] = useState<number | ''>('')
+
+  const filterAndSort = <T extends { price_per_seat?: number; available_seats?: number; seats_needed?: number; departure_at: string }>(items: T[]) => {
+    let result = [...items]
+
+    if (maxPrice !== '') {
+      result = result.filter(i => (i.price_per_seat || 0) <= (maxPrice as number))
+    }
+    if (minSeats !== '') {
+      result = result.filter(i => (i.available_seats || i.seats_needed || 0) >= (minSeats as number))
+    }
+
+    return result.sort((a, b) => {
+      if (sortBy === 'price') {
+        const pa = a.price_per_seat || 0
+        const pb = b.price_per_seat || 0
+        return pa - pb
+      }
+      if (sortBy === 'seats') {
+        const sa = a.available_seats || a.seats_needed || 0
+        const sb = b.available_seats || b.seats_needed || 0
+        return sb - sa // more seats first
+      }
+      return new Date(a.departure_at).getTime() - new Date(b.departure_at).getTime()
+    })
+  }
+
   const search = useCallback(async (o: LatLng, d: LatLng) => {
     setLoading(true)
     setSearched(true)
@@ -71,12 +100,19 @@ export default function HomePage() {
     }
   }, [])
 
-  const reset = () => {
+  const clearSearch = () => {
     setRides([])
     setSeeks([])
     setSearched(false)
     setSelectedRide(null)
     setSelectedSeek(null)
+    clearFilters()
+  }
+
+  const clearFilters = () => {
+    setMaxPrice('')
+    setMinSeats('')
+    setSortBy('soonest')
   }
 
   if (!ready) return null
@@ -122,14 +158,13 @@ export default function HomePage() {
               </p>
             </div>
           ) : (
-            <div className="bg-white border rounded-xl overflow-hidden">
-
+            <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
               {/* tabs */}
               <div className="flex border-b">
                 <button
                   onClick={() => { setTab('rides'); setSelectedRide(null) }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === 'rides'
-                    ? 'text-slate-900 border-b-2 border-slate-900'
+                    ? 'text-slate-900 border-b-2 border-slate-900 bg-slate-50'
                     : 'text-slate-400 hover:text-slate-600'
                     }`}
                 >
@@ -138,7 +173,7 @@ export default function HomePage() {
                 <button
                   onClick={() => { setTab('seeks'); setSelectedSeek(null) }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === 'seeks'
-                    ? 'text-slate-900 border-b-2 border-slate-900'
+                    ? 'text-slate-900 border-b-2 border-slate-900 bg-slate-50'
                     : 'text-slate-400 hover:text-slate-600'
                     }`}
                 >
@@ -146,74 +181,97 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* search again button */}
-              <div className="px-4 pt-3">
+              {/* filter bar */}
+              <div className="px-4 py-3 flex flex-wrap gap-2 items-center justify-between border-b bg-white">
                 <button
-                  onClick={reset}
-                  className="text-xs text-slate-400 hover:text-slate-600 underline"
+                  onClick={clearFilters}
+                  className="text-[11px] text-slate-400 hover:text-slate-600 underline"
                 >
-                  Click map to search a different route
+                  Reset
                 </button>
+                <div className="flex gap-1.5">
+                  <select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value as any)}
+                    className="text-[11px] border rounded px-1.5 py-1 bg-transparent focus:outline-none focus:ring-1 focus:ring-slate-300"
+                  >
+                    <option value="soonest">Soonest</option>
+                    <option value="price">Cheapest</option>
+                    <option value="seats">Seats</option>
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="Max ₹"
+                    value={maxPrice}
+                    onChange={e => setMaxPrice(e.target.value ? Number(e.target.value) : '')}
+                    className="text-[11px] border rounded px-1.5 py-1 w-14 bg-transparent focus:outline-none focus:ring-1 focus:ring-slate-300"
+                  />
+                  <select
+                    value={minSeats}
+                    onChange={e => setMinSeats(e.target.value ? Number(e.target.value) : '')}
+                    className="text-[11px] border rounded px-1.5 py-1 bg-transparent focus:outline-none focus:ring-1 focus:ring-slate-300"
+                  >
+                    <option value="">Seats</option>
+                    {[1, 2, 3, 4].map(n => (
+                      <option key={n} value={n}>{n}+</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              {/* loading */}
-              {loading && (
-                <div className="p-4 space-y-3">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="animate-pulse">
-                      <div className="h-3 bg-slate-100 rounded w-2/3 mb-2" />
-                      <div className="h-3 bg-slate-100 rounded w-1/2" />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* rides */}
-              {!loading && tab === 'rides' && (
-                <div className="divide-y max-h-[340px] overflow-y-auto">
-                  {rides.length === 0 ? (
-                    <EmptyResults
-                      message="No rides near this route"
-                      action={{ label: 'Offer a ride', href: '/rides/new' }}
-                    />
-                  ) : (
-                    rides.map(ride => (
-                      <RideResult
-                        key={ride.id}
-                        ride={ride}
-                        selected={selectedRide?.id === ride.id}
-                        onClick={() => setSelectedRide(
-                          selectedRide?.id === ride.id ? null : ride
-                        )}
+              {/* results list */}
+              <div className="max-h-[380px] overflow-y-auto">
+                {loading ? (
+                  <div className="p-4 space-y-3">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="animate-pulse">
+                        <div className="h-3 bg-slate-100 rounded w-2/3 mb-2" />
+                        <div className="h-3 bg-slate-100 rounded w-1/2" />
+                      </div>
+                    ))}
+                  </div>
+                ) : tab === 'rides' ? (
+                  <div className="divide-y">
+                    {filterAndSort(rides).length === 0 ? (
+                      <EmptyResults
+                        message={searched && (maxPrice || minSeats) ? "No rides match filters" : "No rides near this route"}
+                        action={!maxPrice && !minSeats ? { label: 'Offer a ride', href: '/rides/new' } : undefined}
                       />
-                    ))
-                  )}
-                </div>
-              )}
-
-              {/* seeks */}
-              {!loading && tab === 'seeks' && (
-                <div className="divide-y max-h-[340px] overflow-y-auto">
-                  {seeks.length === 0 ? (
-                    <EmptyResults
-                      message="No seekers near this route"
-                      action={{ label: 'Post your need', href: '/seeks/new' }}
-                    />
-                  ) : (
-                    seeks.map(seek => (
-                      <SeekResult
-                        key={seek.id}
-                        seek={seek}
-                        selected={selectedSeek?.id === seek.id}
-                        onClick={() => setSelectedSeek(
-                          selectedSeek?.id === seek.id ? null : seek
-                        )}
+                    ) : (
+                      filterAndSort(rides).map(ride => (
+                        <RideResult
+                          key={ride.id}
+                          ride={ride}
+                          selected={selectedRide?.id === ride.id}
+                          onClick={() => setSelectedRide(
+                            selectedRide?.id === ride.id ? null : ride
+                          )}
+                        />
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {filterAndSort(seeks).length === 0 ? (
+                      <EmptyResults
+                        message={searched && (maxPrice || minSeats) ? "No seeks match filters" : "No seekers near this route"}
+                        action={!maxPrice && !minSeats ? { label: 'Post your need', href: '/seeks/new' } : undefined}
                       />
-                    ))
-                  )}
-                </div>
-              )}
-
+                    ) : (
+                      filterAndSort(seeks).map(seek => (
+                        <SeekResult
+                          key={seek.id}
+                          seek={seek}
+                          selected={selectedSeek?.id === seek.id}
+                          onClick={() => setSelectedSeek(
+                            selectedSeek?.id === seek.id ? null : seek
+                          )}
+                        />
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -221,7 +279,7 @@ export default function HomePage() {
 
       {/* selected ride detail */}
       {selectedRide && (
-        <div className="mt-4 bg-white border rounded-xl p-5">
+        <div className="mt-4 bg-white border rounded-xl p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
@@ -231,8 +289,8 @@ export default function HomePage() {
                 <Badge
                   variant={selectedRide.status === 'cancelled' ? 'destructive' : selectedRide.status === 'completed' ? 'secondary' : selectedRide.status === 'full' ? 'outline' : 'default'}
                   className={
-                    selectedRide.status === 'scheduled' ? 'bg-blue-600' :
-                      selectedRide.status === 'active' ? 'bg-green-600 animate-pulse' :
+                    selectedRide.status === 'scheduled' ? 'bg-blue-600 text-white' :
+                      selectedRide.status === 'active' ? 'bg-green-600 text-white animate-pulse' :
                         selectedRide.status === 'full' ? 'border-yellow-400 text-yellow-700 bg-yellow-50' :
                           ''
                   }
@@ -246,42 +304,23 @@ export default function HomePage() {
                   {format(new Date(selectedRide.departure_at), 'dd MMM · hh:mm a')}
                 </span>
                 <span>·</span>
-                <span>{selectedRide.available_seats} seats left</span>
+                <span className="font-medium text-slate-700">{selectedRide.available_seats} seats left</span>
                 <span>·</span>
-                <span className="font-medium text-slate-900">
-                  ₹{selectedRide.price_per_seat}/seat
-                </span>
+                <span className="font-semibold text-slate-900">₹{selectedRide.price_per_seat}</span>
               </div>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center
-                  justify-center text-xs font-medium">
-                  {selectedRide.driver_name?.charAt(0).toUpperCase()}
-                </div>
-                <span>{selectedRide.driver_name}</span>
-                <span className="text-yellow-400">★</span>
-                <span>
-                  {selectedRide.driver_avg_rating > 0
-                    ? selectedRide.driver_avg_rating.toFixed(1)
-                    : 'New'}
-                </span>
-              </div>
-              {selectedRide.notes && (
-                <p className="text-xs text-slate-400 mt-2 italic">
-                  "{selectedRide.notes}"
+              {selectedRide.description && (
+                <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg italic">
+                  "{selectedRide.description}"
                 </p>
               )}
             </div>
-            <div className="flex gap-2">
-              <Link href={`/rides/${selectedRide.id}`}>
-                <Button size="sm">Book seat</Button>
+            <div className="flex flex-col gap-2 min-w-[140px]">
+              <Link href={`/bookings/new?ride_id=${selectedRide.id}`}>
+                <Button className="w-full">Book now</Button>
               </Link>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelectedRide(null)}
-              >
-                ✕
-              </Button>
+              <Link href={`/rides/${selectedRide.id}`}>
+                <Button variant="outline" className="w-full text-xs">View details</Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -289,148 +328,97 @@ export default function HomePage() {
 
       {/* selected seek detail */}
       {selectedSeek && (
-        <div className="mt-4 bg-white border rounded-xl p-5">
+        <div className="mt-4 bg-white border rounded-xl p-5 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <h2 className="font-semibold text-slate-900">
                   {selectedSeek.origin_label} → {selectedSeek.dest_label}
                 </h2>
-                <Badge variant="outline">{selectedSeek.status}</Badge>
+                <Badge
+                  variant={selectedSeek.status === 'cancelled' ? 'destructive' : selectedSeek.status === 'matched' ? 'secondary' : 'default'}
+                  className={selectedSeek.status === 'active' ? 'bg-blue-600 text-white' : ''}
+                >
+                  {selectedSeek.status}
+                </Badge>
               </div>
-              <div className="flex flex-wrap gap-3 text-sm text-slate-500 mb-3">
-                <span>
-                  Needs {selectedSeek.seats_needed} seat{selectedSeek.seats_needed !== 1 ? 's' : ''}
-                </span>
-                <span>·</span>
-                <span>
-                  Expires {format(new Date(selectedSeek.expires_at), 'hh:mm a')}
-                </span>
+              <div className="text-sm text-slate-500 mb-3">
+                <span>{selectedSeek.seats_needed} seat{selectedSeek.seats_needed !== 1 ? 's' : ''} needed</span>
+                <span className="mx-2">·</span>
+                <span>Expires {format(new Date(selectedSeek.expires_at), 'dd MMM · hh:mm a')}</span>
               </div>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center
-                  justify-center text-xs font-medium">
-                  {selectedSeek.seeker_name?.charAt(0).toUpperCase()}
-                </div>
-                <span>{selectedSeek.seeker_name}</span>
-                <span className="text-yellow-400">★</span>
-                <span>
-                  {selectedSeek.seeker_avg_rating > 0
-                    ? selectedSeek.seeker_avg_rating.toFixed(1)
-                    : 'New'}
-                </span>
-              </div>
+              {selectedSeek.description && (
+                <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg italic">
+                  "{selectedSeek.description}"
+                </p>
+              )}
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setSelectedSeek(null)}
-            >
-              ✕
-            </Button>
+            <div className="flex flex-col gap-2 min-w-[140px]">
+              <Button className="w-full" disabled>Offer ride (Coming soon)</Button>
+              <Link href={`/seeks/${selectedSeek.id}`}>
+                <Button variant="outline" className="w-full text-xs">View details</Button>
+              </Link>
+            </div>
           </div>
         </div>
       )}
-
     </div>
   )
 }
 
-function RideResult({ ride, selected, onClick }: {
-  ride: Ride; selected: boolean; onClick: () => void
-}) {
+function RideResult({ ride, selected, onClick }: { ride: Ride; selected: boolean; onClick: () => void }) {
   return (
     <div
       onClick={onClick}
-      className={`p-4 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-slate-50'
-        }`}
+      className={`p-4 cursor-pointer transition-all hover:bg-slate-50 ${selected ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : ''}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-900 truncate">
-            {ride.origin_label}
-          </p>
-          <p className="text-xs text-slate-400 mb-1">↓</p>
-          <p className="text-sm font-medium text-slate-900 truncate">
-            {ride.dest_label}
-          </p>
-          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-            <span>{format(new Date(ride.departure_at), 'dd MMM · hh:mm a')}</span>
-            <span>·</span>
-            <span>{ride.available_seats} seats</span>
-          </div>
-        </div>
-        <div className="text-right shrink-0">
-          <p className="font-semibold text-slate-900">₹{ride.price_per_seat}</p>
-          <p className="text-xs text-slate-400">per seat</p>
-          <div className="flex items-center gap-1 mt-1 justify-end">
-            <span className="text-yellow-400 text-xs">★</span>
-            <span className="text-xs text-slate-500">
-              {ride.driver_avg_rating > 0
-                ? ride.driver_avg_rating.toFixed(1)
-                : 'New'}
-            </span>
-          </div>
-        </div>
+      <div className="flex justify-between items-start mb-1">
+        <p className="font-semibold text-slate-900 text-sm truncate pr-2">
+          {ride.origin_label.split(',')[0]} → {ride.dest_label.split(',')[0]}
+        </p>
+        <span className="font-bold text-slate-900 text-sm whitespace-nowrap">₹{ride.price_per_seat}</span>
+      </div>
+      <div className="flex items-center gap-3 text-[11px] text-slate-500">
+        <span>{format(new Date(ride.departure_at), 'hh:mm a')}</span>
+        <span>·</span>
+        <span>{ride.available_seats} seats</span>
+        {ride.status === 'active' && (
+          <Badge variant="default" className="bg-green-600 text-[9px] h-4 px-1 leading-none text-white">LIVE</Badge>
+        )}
       </div>
     </div>
   )
 }
 
-function SeekResult({ seek, selected, onClick }: {
-  seek: Seek; selected: boolean; onClick: () => void
-}) {
+function SeekResult({ seek, selected, onClick }: { seek: Seek; selected: boolean; onClick: () => void }) {
   return (
     <div
       onClick={onClick}
-      className={`p-4 cursor-pointer transition-colors ${selected ? 'bg-orange-50' : 'hover:bg-slate-50'
-        }`}
+      className={`p-4 cursor-pointer transition-all hover:bg-slate-50 ${selected ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : ''}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-900 truncate">
-            {seek.origin_label}
-          </p>
-          <p className="text-xs text-slate-400 mb-1">↓</p>
-          <p className="text-sm font-medium text-slate-900 truncate">
-            {seek.dest_label}
-          </p>
-          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-            <span>
-              Needs {seek.seats_needed} seat{seek.seats_needed !== 1 ? 's' : ''}
-            </span>
-            <span>·</span>
-            <span>{seek.seeker_name}</span>
-          </div>
-        </div>
-        <div className="text-right shrink-0">
-          <div className="flex items-center gap-1 justify-end">
-            <span className="text-yellow-400 text-xs">★</span>
-            <span className="text-xs text-slate-500">
-              {seek.seeker_avg_rating > 0
-                ? seek.seeker_avg_rating.toFixed(1)
-                : 'New'}
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Expires {format(new Date(seek.expires_at), 'hh:mm a')}
-          </p>
-        </div>
+      <div className="flex justify-between items-start mb-1">
+        <p className="font-semibold text-slate-900 text-sm truncate pr-4">
+          {seek.origin_label.split(',')[0]} → {seek.dest_label.split(',')[0]}
+        </p>
+        <Badge variant="outline" className="text-[10px] h-4 px-1 leading-none text-slate-600">{seek.seats_needed} seats</Badge>
+      </div>
+      <div className="flex items-center gap-3 text-[11px] text-slate-500">
+        <span>Expires {format(new Date(seek.expires_at), 'hh:mm a')}</span>
+        {seek.is_recurring && (
+          <span className="text-emerald-600 font-medium ml-2">Recurring</span>
+        )}
       </div>
     </div>
   )
 }
 
-function EmptyResults({ message, action }: {
-  message: string
-  action?: { label: string; href: string }
-}) {
+function EmptyResults({ message, action }: { message: string; action?: { label: string; href: string } }) {
   return (
-    <div className="p-8 text-center">
-      <p className="text-slate-400 text-sm mb-3">{message}</p>
+    <div className="p-10 text-center">
+      <p className="text-slate-400 text-sm mb-4">{message}</p>
       {action && (
         <Link href={action.href}>
-          <Button variant="outline" size="sm">{action.label}</Button>
+          <Button variant="outline" size="sm" className="text-[11px] h-8">{action.label}</Button>
         </Link>
       )}
     </div>
@@ -441,7 +429,9 @@ function MapSkeleton({ height }: { height: string }) {
   return (
     <div
       style={{ height }}
-      className="rounded-xl border bg-slate-100 animate-pulse"
-    />
+      className="bg-slate-100 rounded-xl animate-pulse flex items-center justify-center p-6 text-center border"
+    >
+      <p className="text-slate-400 text-sm italic">Loading map...</p>
+    </div>
   )
 }

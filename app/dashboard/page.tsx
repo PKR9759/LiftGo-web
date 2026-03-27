@@ -61,6 +61,40 @@ export default function DashboardPage() {
   const [incoming, setIncoming] = useState<Booking[]>([])
   const [myBookings, setMyBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'newest' | 'soonest'>('newest')
+
+  // Available status options per tab
+  const getFilterOptions = () => {
+    switch (tab) {
+      case 'my-rides': return ['all', 'scheduled', 'active', 'completed', 'cancelled']
+      case 'my-seeks': return ['all', 'active', 'matched', 'expired', 'cancelled']
+      case 'incoming': return ['all', 'pending', 'confirmed', 'cancelled', 'completed']
+      case 'my-bookings': return ['all', 'pending', 'confirmed', 'rider_ready', 'picked_up', 'completed', 'cancelled', 'no_show']
+      default: return ['all']
+    }
+  }
+
+  const filterAndSort = <T extends { status: string; created_at: string; departure_at?: string }>(items: T[]) => {
+    let result = [...items]
+    if (filterStatus !== 'all') {
+      result = result.filter(i => i.status === filterStatus)
+    }
+    return result.sort((a, b) => {
+      if (sortBy === 'newest') {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      }
+      if (sortBy === 'soonest' && a.departure_at && b.departure_at) {
+        return new Date(a.departure_at).getTime() - new Date(b.departure_at).getTime()
+      }
+      return 0
+    })
+  }
+
+  useEffect(() => {
+    setFilterStatus('all')
+    if (tab === 'my-seeks') setSortBy('newest')
+  }, [tab])
 
   useEffect(() => {
     setUser(getUser())
@@ -73,11 +107,6 @@ export default function DashboardPage() {
           getIncomingBookings(),
           getMyBookings(),
         ])
-        console.log("Current User:", user?.id, user?.email)
-        console.log("Rides:", ridesRes.data)
-        console.log(seeksRes.data)
-        console.log(incomingRes.data)
-        console.log(bookingsRes.data)
         setMyRides(ridesRes.data)
         setMySeeks(seeksRes.data)
         setIncoming(incomingRes.data)
@@ -153,41 +182,6 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
-
-      {/* push notification banner (HIDDEN) */}
-      {/* 
-      {!bannerDismissed && permission === 'default' && !isSubscribed && (
-        <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 mb-6">
-          <Bell className="h-5 w-5 text-indigo-500 shrink-0" />
-          <p className="text-sm text-indigo-800 flex-1">
-            Enable notifications to get instant booking alerts
-          </p>
-          <Button
-            size="sm"
-            className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
-            onClick={subscribe}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Enabling…' : 'Enable'}
-          </Button>
-          <button
-            onClick={() => setBannerDismissed(true)}
-            className="text-indigo-400 hover:text-indigo-600 shrink-0"
-            aria-label="Dismiss"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {permission === 'denied' && (
-        <p className="text-xs text-muted-foreground mb-6">
-          Notifications are blocked. To enable: in Chrome go to Settings →
-          Notifications, in Brave click the shield icon in the address bar.
-        </p>
-      )}
-      */}
-
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
@@ -205,18 +199,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* tabs */}
-      <div className="flex gap-1 bg-slate-100 rounded-lg p-1 mb-6 overflow-x-auto">
+      <div className="flex gap-1 bg-slate-100 rounded-lg p-1 mb-6 overflow-x-auto shadow-inner">
         {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`
               flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium
-              whitespace-nowrap transition-colors
+              whitespace-nowrap transition-all duration-200
               ${tab === t.key
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-900'
+                ? 'bg-white text-slate-900 shadow-md transform scale-[1.02]'
+                : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
               }
             `}
           >
@@ -236,7 +229,41 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* loading skeleton */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white p-4 border rounded-xl shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-slate-500">Filter:</span>
+          <div className="flex flex-wrap gap-1">
+            {getFilterOptions().map(opt => (
+              <button
+                key={opt}
+                onClick={() => setFilterStatus(opt)}
+                className={`
+                  px-3 py-1 rounded-full text-xs font-medium capitalize transition-all
+                  ${filterStatus === opt
+                    ? 'bg-slate-900 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }
+                `}
+              >
+                {opt.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-sm font-medium text-slate-500">Sort:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="text-sm border rounded-md px-2 py-1 bg-transparent focus:outline-none focus:ring-1 focus:ring-slate-400"
+          >
+            <option value="newest">Newest First</option>
+            {tab !== 'my-seeks' && <option value="soonest">Soonest Departure</option>}
+          </select>
+        </div>
+      </div>
+
       {loading && (
         <div className="space-y-4">
           {[1, 2].map(i => (
@@ -248,215 +275,206 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── my rides ── */}
-      {!loading && tab === 'my-rides' && (
+      {!loading && (
         <div className="space-y-4">
-          {myRides.length === 0 ? (
-            <Empty message="No rides posted yet" action={{ label: 'Offer a ride', href: '/rides/new' }} />
-          ) : (
-            myRides.map(ride => (
-              <div key={ride.id} className="bg-white border rounded-xl overflow-hidden">
-                <div className="p-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <p className="font-semibold text-slate-900 break-words">
-                          {ride.origin_label} → {ride.dest_label}
+          {tab === 'my-rides' && (
+            filterAndSort(myRides).length === 0 ? (
+              <Empty message={filterStatus === 'all' ? "No rides posted yet" : "No rides found with this filter"} action={filterStatus === 'all' ? { label: 'Offer a ride', href: '/rides/new' } : undefined} />
+            ) : (
+              filterAndSort(myRides).map(ride => (
+                <div key={ride.id} className="bg-white border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <p className="font-semibold text-slate-900 break-words">
+                            {ride.origin_label} → {ride.dest_label}
+                          </p>
+                          <Badge
+                            variant={statusColor[ride.status]?.variant || 'secondary'}
+                            className={statusColor[ride.status]?.className}
+                          >
+                            {ride.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-slate-500">
+                          {format(new Date(ride.departure_at), 'dd MMM yyyy · hh:mm a')}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">
+                          {ride.available_seats}/{ride.total_seats} seats · ₹{ride.price_per_seat}/seat
+                        </p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <Link href={`/rides/${ride.id}/manage`}>
+                          <Button variant="default" size="sm">Manage</Button>
+                        </Link>
+                        <Link href={`/rides/${ride.id}`}>
+                          <Button variant="outline" size="sm">View</Button>
+                        </Link>
+                        {['scheduled', 'active'].includes(ride.status) && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleCancelRide(ride.id)}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <MapView
+                      rides={[ride]}
+                      height="160px"
+                      centerLat={ride.origin_lat}
+                      centerLng={ride.origin_lng}
+                    />
+                  </div>
+                </div>
+              ))
+            )
+          )}
+
+          {tab === 'my-seeks' && (
+            filterAndSort(mySeeks).length === 0 ? (
+              <Empty message={filterStatus === 'all' ? "No seeks posted yet" : "No seeks found with this filter"} action={filterStatus === 'all' ? { label: 'Post a seek', href: '/seeks/new' } : undefined} />
+            ) : (
+              filterAndSort(mySeeks).map(seek => (
+                <div key={seek.id} className="bg-white border rounded-xl p-5 hover:shadow-md transition-shadow">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-semibold text-slate-900">
+                          {seek.origin_label} → {seek.dest_label}
                         </p>
                         <Badge
-                          variant={statusColor[ride.status]?.variant || 'secondary'}
-                          className={statusColor[ride.status]?.className}
+                          variant={statusColor[seek.status]?.variant || 'secondary'}
+                          className={statusColor[seek.status]?.className}
                         >
-                          {ride.status}
+                          {seek.status}
                         </Badge>
                       </div>
                       <p className="text-sm text-slate-500">
-                        {format(new Date(ride.departure_at), 'dd MMM yyyy · hh:mm a')}
+                        {seek.seats_needed} seat{seek.seats_needed !== 1 ? 's' : ''} needed
                       </p>
-                      <p className="text-sm text-slate-500 mt-1">
-                        {ride.available_seats}/{ride.total_seats} seats · ₹{ride.price_per_seat}/seat
+                      {seek.status === 'active' && (
+                        <p className="text-xs text-slate-400 mt-1">
+                          Expires {format(new Date(seek.expires_at), 'hh:mm a')}
+                        </p>
+                      )}
+                      {seek.is_recurring && (
+                        <p className="text-xs text-slate-400 mt-1 font-medium text-emerald-600">Recurring</p>
+                      )}
+                    </div>
+                    {seek.status === 'active' && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleCancelSeek(seek.id)}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )
+          )}
+
+          {tab === 'incoming' && (
+            filterAndSort(incoming).length === 0 ? (
+              <Empty message={filterStatus === 'all' ? "No incoming bookings found" : "No results for this filter"} />
+            ) : (
+              filterAndSort(incoming).map(b => (
+                <div key={b.id} className="bg-white border rounded-xl p-5 hover:shadow-md transition-shadow">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-semibold text-slate-900">
+                          {b.origin_label} → {b.dest_label}
+                        </p>
+                        <Badge
+                          variant={statusColor[b.status]?.variant || 'secondary'}
+                          className={statusColor[b.status]?.className}
+                        >
+                          {b.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        Rider: {b.rider_name} · {b.seats} seat{b.seats !== 1 ? 's' : ''} · ₹{b.total_price}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {format(new Date(b.departure_at), 'dd MMM yyyy · hh:mm a')}
                       </p>
                     </div>
                     <div className="flex gap-2 flex-wrap">
-                      <Link href={`/rides/${ride.id}/manage`}>
-                        <Button variant="default" size="sm">Manage</Button>
-                      </Link>
-                      <Link href={`/rides/${ride.id}`}>
-                        <Button variant="outline" size="sm">View</Button>
-                      </Link>
-                      {['scheduled', 'active'].includes(ride.status) && (
+                      {b.status === 'pending' && (
+                        <Button size="sm" onClick={() => handleConfirm(b.id)}>
+                          Confirm
+                        </Button>
+                      )}
+                      {['pending', 'confirmed'].includes(b.status) && (
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => handleCancelRide(ride.id)}
+                          onClick={() => handleCancelBooking(b.id)}
                         >
                           Cancel
                         </Button>
                       )}
                     </div>
                   </div>
-                  <MapView
-                    rides={[ride]}
-                    height="160px"
-                    centerLat={ride.origin_lat}
-                    centerLng={ride.origin_lng}
-                  />
                 </div>
-              </div>
-            ))
+              ))
+            )
           )}
-        </div>
-      )}
 
-      {/* ── my seeks ── */}
-      {!loading && tab === 'my-seeks' && (
-        <div className="space-y-4">
-          {mySeeks.length === 0 ? (
-            <Empty message="No seeks posted yet" action={{ label: 'Post a seek', href: '/seeks/new' }} />
-          ) : (
-            mySeeks.map(seek => (
-              <div key={seek.id} className="bg-white border rounded-xl p-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-slate-900">
-                        {seek.origin_label} → {seek.dest_label}
+          {tab === 'my-bookings' && (
+            filterAndSort(myBookings).length === 0 ? (
+              <Empty message={filterStatus === 'all' ? "No bookings yet" : "No bookings found with this filter"} action={filterStatus === 'all' ? { label: 'Find a ride', href: '/liveboard' } : undefined} />
+            ) : (
+              filterAndSort(myBookings).map(b => (
+                <div key={b.id} className="bg-white border rounded-xl p-5 hover:shadow-md transition-shadow">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-semibold text-slate-900">
+                          {b.origin_label} → {b.dest_label}
+                        </p>
+                        <Badge
+                          variant={statusColor[b.status]?.variant || 'secondary'}
+                          className={statusColor[b.status]?.className}
+                        >
+                          {b.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        Driver: {b.driver_name} · {b.seats} seat{b.seats !== 1 ? 's' : ''} · ₹{b.total_price}
                       </p>
-                      <Badge
-                        variant={statusColor[seek.status]?.variant || 'secondary'}
-                        className={statusColor[seek.status]?.className}
-                      >
-                        {seek.status}
-                      </Badge>
+                      <p className="text-sm text-slate-500">
+                        {format(new Date(b.departure_at), 'dd MMM yyyy · hh:mm a')}
+                      </p>
                     </div>
-                    <p className="text-sm text-slate-500">
-                      {seek.seats_needed} seat{seek.seats_needed !== 1 ? 's' : ''} needed
-                    </p>
-                    {seek.status === 'active' && (
-                      <p className="text-xs text-slate-400 mt-1">
-                        Expires {format(new Date(seek.expires_at), 'hh:mm a')}
-                      </p>
-                    )}
-                    {seek.is_recurring && (
-                      <p className="text-xs text-slate-400 mt-1">Recurring</p>
-                    )}
-                  </div>
-                  {seek.status === 'active' && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleCancelSeek(seek.id)}
-                    >
-                      Cancel
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* ── incoming bookings ── */}
-      {!loading && tab === 'incoming' && (
-        <div className="space-y-4">
-          {incoming.length === 0 ? (
-            <Empty message="No bookings on your rides yet" />
-          ) : (
-            incoming.map(b => (
-              <div key={b.id} className="bg-white border rounded-xl p-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-slate-900">
-                        {b.origin_label} → {b.dest_label}
-                      </p>
-                      <Badge
-                        variant={statusColor[b.status]?.variant || 'secondary'}
-                        className={statusColor[b.status]?.className}
-                      >
-                        {b.status.replace('_', ' ')}
-                      </Badge>
+                    <div className="flex gap-2 flex-wrap">
+                      <Link href={`/bookings/${b.id}`}>
+                        <Button variant="outline" size="sm">View</Button>
+                      </Link>
+                      {['pending', 'confirmed', 'rider_ready'].includes(b.status) && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleCancelBooking(b.id)}
+                        >
+                          Cancel
+                        </Button>
+                      )}
                     </div>
-                    <p className="text-sm text-slate-500">
-                      Rider: {b.rider_name} · {b.seats} seat{b.seats !== 1 ? 's' : ''} · ₹{b.total_price}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {format(new Date(b.departure_at), 'dd MMM yyyy · hh:mm a')}
-                    </p>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {b.status === 'pending' && (
-                      <Button size="sm" onClick={() => handleConfirm(b.id)}>
-                        Confirm
-                      </Button>
-                    )}
-                    {['pending', 'confirmed'].includes(b.status) && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleCancelBooking(b.id)}
-                      >
-                        Cancel
-                      </Button>
-                    )}
                   </div>
                 </div>
-              </div>
-            ))
+              ))
+            )
           )}
         </div>
       )}
-
-      {/* ── my bookings ── */}
-      {!loading && tab === 'my-bookings' && (
-        <div className="space-y-4">
-          {myBookings.length === 0 ? (
-            <Empty message="No bookings yet" action={{ label: 'Find a ride', href: '/' }} />
-          ) : (
-            myBookings.map(b => (
-              <div key={b.id} className="bg-white border rounded-xl p-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-slate-900">
-                        {b.origin_label} → {b.dest_label}
-                      </p>
-                      <Badge
-                        variant={statusColor[b.status]?.variant || 'secondary'}
-                        className={statusColor[b.status]?.className}
-                      >
-                        {b.status.replace('_', ' ')}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-slate-500">
-                      Driver: {b.driver_name} · {b.seats} seat{b.seats !== 1 ? 's' : ''} · ₹{b.total_price}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {format(new Date(b.departure_at), 'dd MMM yyyy · hh:mm a')}
-                    </p>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <Link href={`/bookings/${b.id}`}>
-                      <Button variant="outline" size="sm">View</Button>
-                    </Link>
-                    {['pending', 'confirmed'].includes(b.status) && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleCancelBooking(b.id)}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
     </div>
   )
 }
