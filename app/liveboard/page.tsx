@@ -229,7 +229,7 @@ export default function HomePage() {
                   {selectedRide.origin_label} → {selectedRide.dest_label}
                 </h2>
                 <Badge variant={
-                  selectedRide.status === 'active' ? 'default' : 'secondary'
+                  ['scheduled', 'active'].includes(selectedRide.status) ? 'default' : 'secondary'
                 }>
                   {selectedRide.status}
                 </Badge>

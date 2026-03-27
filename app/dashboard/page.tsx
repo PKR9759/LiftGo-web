@@ -32,6 +32,7 @@ const statusColor: Record<string, 'default' | 'secondary' | 'destructive' | 'out
   confirmed: 'default',
   cancelled: 'destructive',
   completed: 'secondary',
+  scheduled: 'default',
   active: 'default',
   matched: 'secondary',
   expired: 'destructive',
@@ -269,7 +270,7 @@ export default function DashboardPage() {
                       <Link href={`/rides/${ride.id}`}>
                         <Button variant="outline" size="sm">View</Button>
                       </Link>
-                      {ride.status === 'active' && (
+                      {['scheduled', 'active'].includes(ride.status) && (
                         <Button
                           size="sm"
                           variant="destructive"

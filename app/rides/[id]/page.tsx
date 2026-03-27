@@ -89,7 +89,7 @@ export default function RideDetailPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 break-words">
             {ride.origin_label} → {ride.dest_label}
           </h1>
-          {ride.status !== 'active' && (
+          {!['scheduled', 'active'].includes(ride.status) && (
             <Badge variant="secondary">{ride.status}</Badge>
           )}
         </div>
@@ -178,7 +178,7 @@ export default function RideDetailPage() {
               {ride.available_seats} seat{ride.available_seats !== 1 ? 's' : ''} left
             </p>
 
-            {!isDriver && ride.status === 'active' && (
+            {!isDriver && ['scheduled', 'active'].includes(ride.status) && (
               <>
                 <div className="mb-3">
                   <Label className="text-xs text-slate-500 mb-1 block">
@@ -203,7 +203,7 @@ export default function RideDetailPage() {
 
             {isDriver ? (
               <p className="text-xs text-slate-400 text-center">This is your ride</p>
-            ) : ride.status !== 'active' ? (
+            ) : !['scheduled', 'active'].includes(ride.status) ? (
               <p className="text-xs text-slate-400 text-center">
                 This ride is {ride.status}
               </p>
