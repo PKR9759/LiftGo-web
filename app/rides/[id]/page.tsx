@@ -226,7 +226,7 @@ export default function RideDetailPage() {
               <p className="text-xs text-slate-400 text-center py-2 bg-slate-50 rounded-lg border border-dashed">
                 This is your ride
               </p>
-            ) : !['scheduled', 'active'].includes(ride.status) ? (
+            ) : !['scheduled', 'active', 'full'].includes(ride.status) ? (
               <p className="text-xs text-slate-400 text-center italic">
                 This ride is {ride.status}
               </p>

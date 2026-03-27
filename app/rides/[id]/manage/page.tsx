@@ -310,7 +310,7 @@ export default function ManageRidePage() {
                     )}
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    {ride.status === 'scheduled' && (
+                    {['scheduled', 'full'].includes(ride.status) && (
                         <>
                             <div className="flex flex-col items-center gap-1">
                                 <Button

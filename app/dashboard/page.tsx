@@ -311,7 +311,7 @@ export default function DashboardPage() {
                         <Link href={`/rides/${ride.id}`}>
                           <Button variant="outline" size="sm">View</Button>
                         </Link>
-                        {['scheduled', 'active'].includes(ride.status) && (
+                        {['scheduled', 'full'].includes(ride.status) && (
                           <Button
                             size="sm"
                             variant="destructive"
@@ -458,7 +458,7 @@ export default function DashboardPage() {
                       <Link href={`/bookings/${b.id}`}>
                         <Button variant="outline" size="sm">View</Button>
                       </Link>
-                      {['pending', 'confirmed', 'rider_ready'].includes(b.status) && (
+                      {['pending', 'confirmed', 'rider_ready', 'picked_up'].includes(b.status) && (
                         <Button
                           size="sm"
                           variant="destructive"
@@ -475,6 +475,7 @@ export default function DashboardPage() {
           )}
         </div>
       )}
+
     </div>
   )
 }
