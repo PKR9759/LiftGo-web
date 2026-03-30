@@ -11,7 +11,7 @@ const protectedRoutes = [
 ]
 
 export function proxy(request: NextRequest) {
-  const token = request.cookies.get('liftgo_token')?.value
+  const token = request.cookies.get('access_token')?.value || request.cookies.get('refresh_token')?.value
   const { pathname } = request.nextUrl
 
   const isProtected = protectedRoutes.some(route =>

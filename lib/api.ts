@@ -1,6 +1,5 @@
 // lib/api.ts
 import axios from 'axios'
-import { getToken } from './auth'
 import type {
   AuthResponse, User, Ride, Seek, Booking, Review
 } from '@/types'
@@ -8,13 +7,71 @@ import type {
 const client = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
 
-client.interceptors.request.use((config) => {
-  const token = getToken()
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+let isRefreshing = false
+
+let failedQueue: Array<{ resolve: (value?: unknown) => void, reject: (reason?: any) => void }> = []
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
+client.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
+
+    // Do not intercept if the failed request was the refresh token request itself
+    if (originalRequest.url === '/api/auth/refresh') {
+      return Promise.reject(error)
+    }
+
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise(function (resolve, reject) {
+          failedQueue.push({ resolve, reject })
+        })
+          .then(() => {
+            return client(originalRequest)
+          })
+          .catch((err) => {
+            return Promise.reject(err)
+          })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      try {
+        await client.post('/api/auth/refresh')
+        processQueue(null, 'refreshed')
+        return client(originalRequest)
+      } catch (err) {
+        processQueue(err, null)
+        if (typeof window !== 'undefined') {
+          const isAuthPage = window.location.pathname.startsWith('/auth/')
+          if (!isAuthPage) {
+            window.location.href = '/auth/login'
+          }
+        }
+        return Promise.reject(err)
+      } finally {
+        isRefreshing = false
+      }
+    }
+
+    return Promise.reject(error)
+  }
+)
 
 // ── auth ──────────────────────────────────────────────────
 export const register = (data: {
@@ -25,6 +82,10 @@ export const register = (data: {
 export const login = (data: {
   email: string; password: string
 }) => client.post<AuthResponse>('/api/auth/login', data)
+
+export const logoutUser = () => client.post<{ message: string }>('/api/auth/logout')
+
+export const getAuthMe = () => client.get<{ user: User }>('/api/auth/me')
 
 // ── users ─────────────────────────────────────────────────
 export const getMe = () =>

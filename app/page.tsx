@@ -3,13 +3,13 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { isLoggedIn } from '@/lib/auth'
+import { getUser } from '@/lib/auth'
 
 export default function LandingPage() {
     const [loggedIn, setLoggedIn] = useState(false)
 
     useEffect(() => {
-        setLoggedIn(isLoggedIn())
+        setLoggedIn(!!getUser())
     }, [])
 
     return (

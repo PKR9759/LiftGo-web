@@ -34,16 +34,10 @@ export function useRideTracking(bookingId: string, enabled: boolean, onStatusUpd
         let reconnectTimeout: NodeJS.Timeout
 
         const connectAndListen = () => {
-            const token = Cookies.get('liftgo_token')
-            if (!token) {
-                toast.error('Authentication error, cannot connect to tracking')
-                return
-            }
-
             const host = window.location.hostname
             const defaultWsUrl = host === 'localhost' ? 'ws://localhost:8080' : `ws://${host}:8080`
             const wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl
-            const socket = new WebSocket(`${wsUrl}/ws/rider/${bookingId}?token=${token}`)
+            const socket = new WebSocket(`${wsUrl}/ws/rider/${bookingId}`)
             ws.current = socket
 
             socket.onopen = () => {

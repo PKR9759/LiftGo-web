@@ -4,7 +4,8 @@
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { clearAuth, getUser, isLoggedIn } from '@/lib/auth'
+import { clearAuthCache, getUser } from '@/lib/auth'
+import { getAuthMe, logoutUser } from '@/lib/api'
 import { useEffect, useState } from 'react'
 
 export default function Navbar() {
@@ -18,15 +19,27 @@ export default function Navbar() {
 
   useEffect(() => {
     setMounted(true)
-    setLoggedIn(isLoggedIn())
     const user = getUser()
-    if (user) setUserName(user.name)
+    if (user) {
+      setLoggedIn(true)
+      setUserName(user.name)
+    }
+
+    getAuthMe()
+      .then(res => {
+        setLoggedIn(true)
+        setUserName(res.data.user.name)
+      })
+      .catch(() => {
+        setLoggedIn(false)
+        clearAuthCache()
+      })
   }, [])
 
   useEffect(() => {
     if (!mounted) return
-    setLoggedIn(isLoggedIn())
     const user = getUser()
+    setLoggedIn(!!user)
     setUserName(user?.name ?? '')
   }, [pathname, mounted])
 
@@ -35,12 +48,16 @@ export default function Navbar() {
     setMenuOpen(false)
   }, [pathname])
 
-  const handleLogout = () => {
-    clearAuth()
+  const handleLogout = async () => {
+    try {
+      await logoutUser()
+    } catch (e) { }
+
+    clearAuthCache()
     setLoggedIn(false)
     setUserName('')
     setMenuOpen(false)
-    router.push('/')
+    router.push('/auth/login')
     router.refresh()
   }
 
@@ -83,8 +100,8 @@ export default function Navbar() {
               key={link.href}
               href={link.href}
               className={`text-sm transition-colors ${pathname === link.href
-                  ? 'text-slate-900 font-medium'
-                  : 'text-slate-600 hover:text-slate-900'
+                ? 'text-slate-900 font-medium'
+                : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
               {link.label}
@@ -148,8 +165,8 @@ export default function Navbar() {
               key={link.href}
               href={link.href}
               className={`block px-3 py-2.5 rounded-lg text-sm transition-colors ${pathname === link.href
-                  ? 'bg-slate-100 text-slate-900 font-medium'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                ? 'bg-slate-100 text-slate-900 font-medium'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`}
             >
               {link.label}
@@ -163,8 +180,8 @@ export default function Navbar() {
               <Link
                 href="/profile"
                 className={`block px-3 py-2.5 rounded-lg text-sm transition-colors ${pathname === '/profile'
-                    ? 'bg-slate-100 text-slate-900 font-medium'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'bg-slate-100 text-slate-900 font-medium'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
               >
                 👤 {userName}

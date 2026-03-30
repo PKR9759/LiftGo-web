@@ -26,16 +26,10 @@ export function useDriverLocation(bookingId: string, enabled: boolean, onStatusU
         let reconnectTimeout: NodeJS.Timeout
 
         const connectAndTrack = () => {
-            const token = Cookies.get('liftgo_token')
-            if (!token) {
-                toast.error('Authentication error, cannot share location')
-                return
-            }
-
             const host = window.location.hostname
             const defaultWsUrl = host === 'localhost' ? 'ws://localhost:8080' : `ws://${host}:8080`
             const wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl
-            const socket = new WebSocket(`${wsUrl}/ws/driver/${bookingId}?token=${token}`)
+            const socket = new WebSocket(`${wsUrl}/ws/driver/${bookingId}`)
             ws.current = socket
 
             socket.onopen = () => {

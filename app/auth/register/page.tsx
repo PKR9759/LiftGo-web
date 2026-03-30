@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { register as registerUser } from '@/lib/api'
-import { setAuth } from '@/lib/auth'
+import { setUser } from '@/lib/auth'
 import { useGuestOnly } from '@/hooks/useRequireAuth'
 import { toast } from 'sonner'
 
@@ -53,7 +53,7 @@ export default function RegisterPage() {
         phone: data.phone,
         role: data.role,
       })
-      setAuth(res.data.token, res.data.user)
+      setUser(res.data.user)
       toast.success('Account created!')
       router.push('/liveboard')
       router.refresh()

@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getRide, createBooking, getRideStatusSummary } from '@/lib/api'
-import { isLoggedIn, getUser } from '@/lib/auth'
+import { getUser } from '@/lib/auth'
 import { toast } from 'sonner'
 import type { Ride } from '@/types'
 import { format } from 'date-fns'
@@ -42,7 +42,7 @@ export default function RideDetailPage() {
   const [summary, setSummary] = useState<any>(null)
 
   const currentUser = getUser()
-  const loggedIn = isLoggedIn()
+  const loggedIn = !!currentUser
 
   const load = async () => {
     try {
