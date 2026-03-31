@@ -1,8 +1,7 @@
 // hooks/usePushNotifications.ts
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import axios from 'axios'
-import { getToken } from '@/lib/auth'
+import { subscribePush } from '@/lib/api'
 
 type PermissionState = 'default' | 'granted' | 'denied'
 
@@ -90,12 +89,7 @@ export function usePushNotifications() {
             const p256dh = subJSON.keys?.p256dh!
             const auth = subJSON.keys?.auth!
 
-            const token = getToken()
-            await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/push/subscribe`,
-                { endpoint, p256dh, auth },
-                { headers: { Authorization: `Bearer ${token}` } }
-            )
+            await subscribePush({ endpoint, p256dh, auth })
 
             setIsSubscribed(true)
             toast.success('Notifications enabled!')

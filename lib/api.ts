@@ -208,3 +208,7 @@ export const createReview = (data: {
   booking_id: string; reviewee_id: string
   rating: number; comment?: string
 }) => client.post<Review>('/api/reviews', data)
+
+// ── notifications ────────────────────────────────────────
+export const subscribePush = (data: { endpoint: string, p256dh: string, auth: string }) =>
+  client.post('/api/push/subscribe', data)

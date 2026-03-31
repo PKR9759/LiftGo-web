@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getMe, updateMe, getUserReviews } from '@/lib/api'
-import { setAuth, getToken } from '@/lib/auth'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { toast } from 'sonner'
 import type { User, Review } from '@/types'
@@ -75,8 +74,6 @@ export default function ProfilePage() {
     try {
       const res = await updateMe(data)
       setUser(res.data)
-      const token = getToken()
-      if (token) setAuth(token, res.data)
       toast.success('Profile updated')
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to update')
