@@ -17,6 +17,30 @@ const MapPicker = dynamic(
 
 type Tab = 'rides' | 'seeks'
 
+function formatRupee(amount: number) {
+  return `₹${amount.toFixed(2).replace(/\.00$/, '')}`
+}
+
+function getRideSegmentPricing(ride: Ride) {
+  const fullPrice = ride.price_per_seat
+  const coverageFraction =
+    ride.pickup_fraction !== undefined && ride.dropoff_fraction !== undefined && ride.dropoff_fraction > ride.pickup_fraction
+      ? ride.dropoff_fraction - ride.pickup_fraction
+      : ride.route_coverage_pct !== undefined && ride.route_coverage_pct > 0
+        ? ride.route_coverage_pct / 100
+        : 1
+
+  const segmentPrice = Math.max(0, fullPrice * coverageFraction)
+  const savings = Math.max(0, fullPrice - segmentPrice)
+
+  return {
+    fullPrice,
+    segmentPrice,
+    savings,
+    coveragePct: Math.round(coverageFraction * 1000) / 10,
+  }
+}
+
 export default function HomePage() {
   const { ready } = useRequireAuth()
 
@@ -160,7 +184,7 @@ export default function HomePage() {
         <div className="lg:col-span-1">
           {!searched ? (
             <div className="bg-white border rounded-xl p-6 text-center h-full
-              flex flex-col items-center justify-center min-h-[200px]">
+              flex flex-col items-center justify-center min-h-50">
               <p className="text-slate-400 text-sm mb-4">
                 Click two points on the map to find rides and seekers near your route
               </p>
@@ -228,7 +252,7 @@ export default function HomePage() {
               </div>
 
               {/* results list */}
-              <div className="max-h-[380px] overflow-y-auto">
+              <div className="max-h-95 overflow-y-auto">
                 {loading ? (
                   <div className="p-4 space-y-3">
                     {[1, 2, 3].map(i => (
@@ -314,7 +338,15 @@ export default function HomePage() {
                 <span>·</span>
                 <span className="font-medium text-slate-700">{selectedRide.available_seats} seats left</span>
                 <span>·</span>
-                <span className="font-semibold text-slate-900">₹{selectedRide.price_per_seat}</span>
+                <span className="font-semibold text-slate-900">{formatRupee(getRideSegmentPricing(selectedRide).segmentPrice)} after cut</span>
+                <span className="text-slate-400 line-through">{formatRupee(selectedRide.price_per_seat)}</span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs text-slate-500 mb-4">
+                <span>Full fare/seat {formatRupee(selectedRide.price_per_seat)}</span>
+                <span>·</span>
+                <span>Cut fare/seat {formatRupee(getRideSegmentPricing(selectedRide).segmentPrice)}</span>
+                <span>·</span>
+                <span>You save {formatRupee(getRideSegmentPricing(selectedRide).savings)}</span>
               </div>
               {selectedRide.notes && (
                 <p className="text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg italic border-l-4 border-slate-200">
@@ -322,7 +354,7 @@ export default function HomePage() {
                 </p>
               )}
             </div>
-            <div className="flex flex-col gap-2 min-w-[140px]">
+            <div className="flex flex-col gap-2 min-w-35">
               <Link href={`/rides/${selectedRide.id}`}>
                 <Button variant="outline" className="w-full text-xs">View details</Button>
               </Link>
@@ -353,7 +385,7 @@ export default function HomePage() {
                 <span>Expires {format(new Date(selectedSeek.expires_at), 'dd MMM · hh:mm a')}</span>
               </div>
             </div>
-            <div className="flex flex-col gap-2 min-w-[140px]">
+            <div className="flex flex-col gap-2 min-w-35">
               <Button className="w-full" disabled>Offer ride (Coming soon)</Button>
               <Link href={`/seeks/${selectedSeek.id}`}>
                 <Button variant="outline" className="w-full text-xs">View details</Button>
@@ -367,6 +399,14 @@ export default function HomePage() {
 }
 
 function RideResult({ ride, selected, onClick }: { ride: Ride; selected: boolean; onClick: () => void }) {
+  const pricing = getRideSegmentPricing(ride)
+  let matchQuality = "";
+  if (ride.match_score !== undefined) {
+    if (ride.match_score > 4.0) matchQuality = "Great match";
+    else if (ride.match_score >= 2.0) matchQuality = "Good match";
+    else matchQuality = "Partial match";
+  }
+
   return (
     <div
       onClick={onClick}
@@ -376,7 +416,11 @@ function RideResult({ ride, selected, onClick }: { ride: Ride; selected: boolean
         <p className="font-semibold text-slate-900 text-sm truncate pr-2">
           {ride.origin_label.split(',')[0]} → {ride.dest_label.split(',')[0]}
         </p>
-        <span className="font-bold text-slate-900 text-sm whitespace-nowrap">₹{ride.price_per_seat}</span>
+        <div className="text-right">
+          <div className="text-[10px] uppercase tracking-wide text-slate-400">After cut</div>
+          <div className="font-bold text-slate-900 text-sm whitespace-nowrap">{formatRupee(pricing.segmentPrice)}</div>
+          <div className="text-[10px] text-slate-400 line-through">{formatRupee(pricing.fullPrice)}</div>
+        </div>
       </div>
       <div className="flex items-center gap-3 text-[11px] text-slate-500">
         <span>{format(new Date(ride.departure_at), 'hh:mm a')}</span>
@@ -386,6 +430,23 @@ function RideResult({ ride, selected, onClick }: { ride: Ride; selected: boolean
           <Badge variant="default" className="bg-green-600 text-[9px] h-4 px-1 leading-none text-white font-bold">LIVE</Badge>
         )}
       </div>
+      
+      {(ride.pickup_distance_m! > 0 || ride.route_coverage_pct! > 0 || matchQuality) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 mt-2">
+           {matchQuality && (
+               <span className={`font-semibold ${ride.match_score! > 4.0 ? 'text-green-600' : ride.match_score! >= 2.0 ? 'text-blue-600' : 'text-orange-500'}`}>
+                   {matchQuality}
+               </span>
+           )}
+           {ride.pickup_distance_m !== undefined && ride.pickup_distance_m > 0 && (
+               <span>📍 {ride.pickup_distance_m}m from your pickup</span>
+           )}
+           {ride.route_coverage_pct !== undefined && ride.route_coverage_pct > 0 && (
+               <span>🛣️ Covers {ride.route_coverage_pct}% of your journey</span>
+           )}
+           <span>💸 Save {formatRupee(pricing.savings)} per seat</span>
+        </div>
+      )}
     </div>
   )
 }

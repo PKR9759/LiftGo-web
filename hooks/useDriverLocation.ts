@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import Cookies from 'js-cookie'
 import { toast } from 'sonner'
+import { buildWebSocketUrl } from '@/lib/realtime'
 
 interface ChatMessage {
     type: string
@@ -26,10 +26,7 @@ export function useDriverLocation(bookingId: string, enabled: boolean, onStatusU
         let reconnectTimeout: NodeJS.Timeout
 
         const connectAndTrack = () => {
-            const host = window.location.hostname
-            const defaultWsUrl = host === 'localhost' ? 'ws://localhost:8080' : `ws://${host}:8080`
-            const wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl
-            const socket = new WebSocket(`${wsUrl}/ws/driver/${bookingId}`)
+            const socket = new WebSocket(buildWebSocketUrl(`/ws/driver/${bookingId}`))
             ws.current = socket
 
             socket.onopen = () => {

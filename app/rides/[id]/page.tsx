@@ -76,9 +76,17 @@ export default function RideDetailPage() {
 
   const handleBook = async () => {
     if (!loggedIn) { router.push('/auth/login'); return }
+    if (!ride) return
     setBooking(true)
     try {
-      const res = await createBooking({ ride_id: id, seats })
+      const res = await createBooking({
+        ride_id: id,
+        seats,
+        pickup_lat: ride.origin_lat,
+        pickup_lng: ride.origin_lng,
+        dropoff_lat: ride.dest_lat,
+        dropoff_lng: ride.dest_lng,
+      })
       toast.success('Seat booked!')
       router.push(`/bookings/${res.data.id}`)
     } catch (err: any) {

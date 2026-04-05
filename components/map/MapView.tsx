@@ -3,6 +3,7 @@
 
 import React, { useEffect, useRef } from 'react'
 import type { Ride, Seek } from '@/types'
+import { getDirectionsOla } from '@/lib/olaMaps'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
@@ -63,13 +64,13 @@ export default function MapView({
       if (e.error?.message?.includes('3d_model')) return
     })
 
-    map.on('load', () => {
+    map.on('load', async () => {
       let routeFeatures: any[] = []
       const bounds = new maplibregl.LngLatBounds()
       let hasPoints = false
 
       // Process rides
-      rides.forEach(ride => {
+      for (const ride of rides) {
         // Create marker
         const el = document.createElement('div')
         el.style.width = '14px'
@@ -98,16 +99,36 @@ export default function MapView({
           })
         }
 
+        let coordinates: [number, number][] = []
+        if (ride.route_coordinates && ride.route_coordinates.length > 2) {
+          coordinates = ride.route_coordinates.map(c => [c.lng, c.lat])
+        } else {
+          try {
+            const route = await getDirectionsOla(
+              { lat: ride.origin_lat, lng: ride.origin_lng },
+              { lat: ride.dest_lat, lng: ride.dest_lng }
+            )
+            if (route?.geometry?.coordinates?.length > 2) {
+              coordinates = route.geometry.coordinates as [number, number][]
+            }
+          } catch {
+            // ignore and fall back to direct line
+          }
+          if (coordinates.length <= 2) {
+            coordinates = [[ride.origin_lng, ride.origin_lat], [ride.dest_lng, ride.dest_lat]]
+          }
+        }
+
         routeFeatures.push({
           type: 'Feature',
-          geometry: { type: 'LineString', coordinates: [[ride.origin_lng, ride.origin_lat], [ride.dest_lng, ride.dest_lat]] },
+          geometry: { type: 'LineString', coordinates },
           properties: { color: '#3b82f6', isRide: true }
         })
 
         bounds.extend([ride.origin_lng, ride.origin_lat])
         bounds.extend([ride.dest_lng, ride.dest_lat])
         hasPoints = true
-      })
+      }
 
       // Process seeks
       seeks.forEach(seek => {

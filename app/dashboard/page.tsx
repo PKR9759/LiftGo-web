@@ -402,6 +402,11 @@ export default function DashboardPage() {
                       <p className="text-sm text-slate-500">
                         Rider: {b.rider_name} · {b.seats} seat{b.seats !== 1 ? 's' : ''} · ₹{b.total_price}
                       </p>
+                      {(b.total_savings ?? 0) > 0 && (
+                        <p className="text-xs text-emerald-600 mt-1">
+                          Segment fare applied: saved ₹{b.total_savings}
+                        </p>
+                      )}
                       <p className="text-sm text-slate-500">
                         {format(new Date(b.departure_at), 'dd MMM yyyy · hh:mm a')}
                       </p>
@@ -450,6 +455,11 @@ export default function DashboardPage() {
                       <p className="text-sm text-slate-500">
                         Driver: {b.driver_name} · {b.seats} seat{b.seats !== 1 ? 's' : ''} · ₹{b.total_price}
                       </p>
+                      {(b.total_savings ?? 0) > 0 && (
+                        <p className="text-xs text-emerald-600 mt-1">
+                          Segment fare applied: saved ₹{b.total_savings}
+                        </p>
+                      )}
                       <p className="text-sm text-slate-500">
                         {format(new Date(b.departure_at), 'dd MMM yyyy · hh:mm a')}
                       </p>

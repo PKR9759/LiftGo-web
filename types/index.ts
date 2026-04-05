@@ -33,6 +33,13 @@ export interface Ride {
   notes?: string
   status: 'scheduled' | 'active' | 'full' | 'cancelled' | 'completed'
   created_at: string
+  route_coordinates?: { lat: number; lng: number }[]
+  pickup_distance_m?: number
+  dropoff_distance_m?: number
+  pickup_fraction?: number
+  dropoff_fraction?: number
+  route_coverage_pct?: number
+  match_score?: number
 }
 
 export interface Seek {
@@ -82,6 +89,13 @@ export interface Booking {
   rider_dest_lng?: number
   rider_ready_lat?: number
   rider_ready_lng?: number
+  pickup_fraction?: number
+  dropoff_fraction?: number
+  full_route_price_per_seat?: number
+  segment_price_per_seat?: number
+  segment_coverage_pct?: number
+  total_full_price?: number
+  total_savings?: number
 }
 
 export interface Review {
@@ -109,4 +123,14 @@ export interface LatLng {
   lat: number
   lng: number
   label: string
+}
+
+export interface CreateBookingRequest {
+  ride_id: string
+  seek_id?: string
+  seats: number
+  pickup_lat: number
+  pickup_lng: number
+  dropoff_lat: number
+  dropoff_lng: number
 }
