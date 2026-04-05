@@ -249,8 +249,20 @@ export default function BookingDetailPage() {
           <span className="font-medium text-slate-900">{format(departure, 'hh:mm a')}</span>
           <span className="text-slate-500">Seats</span>
           <span className="font-medium text-slate-900">{booking.seats}</span>
+          <span className="text-slate-500">Full fare/seat</span>
+          <span className="font-medium text-slate-900">₹{booking.full_route_price_per_seat ?? booking.total_price}</span>
+          <span className="text-slate-500">Your segment</span>
+          <span className="font-medium text-slate-900">{booking.segment_coverage_pct ?? 100}%</span>
+          <span className="text-slate-500">Segment fare/seat</span>
+          <span className="font-medium text-slate-900">₹{booking.segment_price_per_seat ?? booking.total_price}</span>
           <span className="text-slate-500">Total</span>
           <span className="font-medium text-slate-900">₹{booking.total_price}</span>
+          {(booking.total_savings ?? 0) > 0 && (
+            <>
+              <span className="text-slate-500">You saved</span>
+              <span className="font-medium text-emerald-600">₹{booking.total_savings}</span>
+            </>
+          )}
           <span className="text-slate-500">{isRider ? 'Driver' : 'Rider'}</span>
           <span className="font-medium text-slate-900">{isRider ? booking.driver_name : booking.rider_name}</span>
         </div>

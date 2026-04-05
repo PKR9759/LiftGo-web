@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import Cookies from 'js-cookie'
 import { toast } from 'sonner'
+import { buildWebSocketUrl } from '@/lib/realtime'
 
 interface LocationData {
     lat: number
@@ -34,10 +34,7 @@ export function useRideTracking(bookingId: string, enabled: boolean, onStatusUpd
         let reconnectTimeout: NodeJS.Timeout
 
         const connectAndListen = () => {
-            const host = window.location.hostname
-            const defaultWsUrl = host === 'localhost' ? 'ws://localhost:8080' : `ws://${host}:8080`
-            const wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl
-            const socket = new WebSocket(`${wsUrl}/ws/rider/${bookingId}`)
+            const socket = new WebSocket(buildWebSocketUrl(`/ws/rider/${bookingId}`))
             ws.current = socket
 
             socket.onopen = () => {

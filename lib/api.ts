@@ -102,6 +102,7 @@ export const getNearbyRides = (params: {
   origin_lat: number; origin_lng: number
   dest_lat: number; dest_lng: number
   radius?: number
+  seats_needed?: number
 }) => client.get<Ride[]>('/api/rides/nearby', { params })
 
 export const getRide = (id: string) =>
@@ -116,6 +117,7 @@ export const createRide = (data: {
   departure_at: string; total_seats: number
   price_per_seat: number; is_recurring: boolean
   recurrence_days?: number[]; notes?: string
+  waypoints?: Array<{ lat: number; lng: number }>
 }) => client.post<Ride>('/api/rides', data)
 
 export const updateRideStatus = (id: string, status: 'active' | 'completed') =>
@@ -147,6 +149,10 @@ export const cancelSeek = (id: string) =>
 // ── bookings ──────────────────────────────────────────────
 export const createBooking = (data: {
   ride_id: string; seats: number; seek_id?: string
+  pickup_lat: number
+  pickup_lng: number
+  dropoff_lat: number
+  dropoff_lng: number
 }) => client.post<Booking>('/api/bookings', data)
 
 export const getMyBookings = () =>

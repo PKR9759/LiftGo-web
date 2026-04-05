@@ -47,6 +47,9 @@ export default function NewRidePage() {
 
   const [origin, setOrigin] = useState<LatLng | null>(null);
   const [destination, setDestination] = useState<LatLng | null>(null);
+  const [viaPoints, setViaPoints] = useState<LatLng[]>([]);
+  const [routeWaypoints, setRouteWaypoints] = useState<LatLng[]>([]);
+  const [isFetchingRoute, setIsFetchingRoute] = useState(false);
   const [recurDays, setRecurDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -81,6 +84,10 @@ export default function NewRidePage() {
       toast.error("Please set your destination on the map");
       return;
     }
+    if (!routeWaypoints || routeWaypoints.length < 2) {
+      toast.error("Route could not be loaded. Please check your origin and destination.");
+      return;
+    }
     if (data.is_recurring && recurDays.length === 0) {
       toast.error("Select at least one recurring day");
       return;
@@ -102,6 +109,7 @@ export default function NewRidePage() {
         is_recurring: data.is_recurring,
         recurrence_days: data.is_recurring ? recurDays : [],
         notes: data.notes,
+        waypoints: routeWaypoints.length > 0 ? routeWaypoints.map(v => ({ lat: v.lat, lng: v.lng })) : undefined,
       });
       toast.success("Ride posted!");
       router.push(`/rides/${res.data.id}`);
@@ -128,11 +136,15 @@ export default function NewRidePage() {
         <div className="bg-white border rounded-xl p-5">
           <h2 className="font-semibold text-slate-900 mb-4">Route</h2>
           <MapPicker
-            onChange={(o, d) => {
+            onChange={(o, d, rw, v, fetching) => {
               setOrigin(o);
               setDestination(d);
+              if (rw !== undefined) setRouteWaypoints(rw);
+              if (v !== undefined) setViaPoints(v);
+              if (fetching !== undefined) setIsFetchingRoute(fetching);
             }}
             height="320px"
+            enableViaPoints={true}
           />
         </div>
 
@@ -245,8 +257,8 @@ export default function NewRidePage() {
           />
         </div>
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Posting ride..." : "Post ride"}
+        <Button type="submit" className="w-full" disabled={loading || isFetchingRoute}>
+          {loading ? "Posting ride..." : isFetchingRoute ? "Fetching route..." : "Post ride"}
         </Button>
       </form>
     </div>

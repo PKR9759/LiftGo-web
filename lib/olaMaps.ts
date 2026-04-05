@@ -77,6 +77,34 @@ export async function autocompleteOla(query: string) {
     }
 }
 
+export async function getPlaceDetailsOla(placeId: string) {
+    const cacheKey = `details_${placeId}`
+    const cached = getCache(cacheKey)
+    if (IS_DEV && cached) return cached
+
+    const apiKey = process.env.NEXT_PUBLIC_OLA_MAPS_API_KEY
+    if (!apiKey || apiKey === 'YOUR_OLA_MAPS_API_KEY_HERE') return null
+
+    try {
+        const res = await fetch(`https://api.olamaps.io/places/v1/details?place_id=${placeId}&api_key=${apiKey}`, {
+            headers: { 'X-Request-Id': crypto.randomUUID() }
+        })
+        const data = await res.json()
+        if (data.status === 'ok' && data.result) {
+            const result = {
+                lat: data.result.geometry.location.lat,
+                lng: data.result.geometry.location.lng,
+                label: data.result.formatted_address
+            }
+            setCache(cacheKey, result)
+            return result
+        }
+    } catch (error) {
+        console.error('Ola Place Details Error:', error)
+    }
+    return null
+}
+
 export async function reverseGeocodeOla(lat: number, lng: number): Promise<string> {
     const cacheKey = `rev_${lat.toFixed(4)}_${lng.toFixed(4)}`
     const cached = getCache(cacheKey)
@@ -110,8 +138,12 @@ export async function reverseGeocodeOla(lat: number, lng: number): Promise<strin
     return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
 }
 
-export async function getDirectionsOla(origin: { lat: number; lng: number }, dest: { lat: number; lng: number }) {
-    const cacheKey = `dir_${origin.lat.toFixed(4)}_${origin.lng.toFixed(4)}_to_${dest.lat.toFixed(4)}_${dest.lng.toFixed(4)}`
+export async function getDirectionsOla(origin: { lat: number; lng: number }, dest: { lat: number; lng: number }, viaPoints?: Array<{ lat: number; lng: number }>) {
+    let cacheKey = `dir_${origin.lat.toFixed(4)}_${origin.lng.toFixed(4)}_to_${dest.lat.toFixed(4)}_${dest.lng.toFixed(4)}`
+    if (viaPoints && viaPoints.length > 0) {
+        const viaStr = viaPoints.map(p => `${p.lat.toFixed(4)}_${p.lng.toFixed(4)}`).join('_')
+        cacheKey += `_via_${viaStr}`
+    }
     const cached = getCache(cacheKey)
 
     if (IS_DEV && cached) {
@@ -122,13 +154,18 @@ export async function getDirectionsOla(origin: { lat: number; lng: number }, des
     const apiKey = process.env.NEXT_PUBLIC_OLA_MAPS_API_KEY
     if (!apiKey || apiKey === 'YOUR_OLA_MAPS_API_KEY_HERE') {
         if (IS_DEV) {
-            // Mock direction geometry (straight line)
+            // Mock direction geometry (straight line through via points if any)
+            const coords = [[origin.lng, origin.lat]]
+            if (viaPoints) {
+                viaPoints.forEach(p => coords.push([p.lng, p.lat]))
+            }
+            coords.push([dest.lng, dest.lat])
             return {
                 distance: '10 km',
                 duration: '15 mins',
                 geometry: {
                     type: 'LineString',
-                    coordinates: [[origin.lng, origin.lat], [dest.lng, dest.lat]]
+                    coordinates: coords
                 }
             }
         }
@@ -141,6 +178,10 @@ export async function getDirectionsOla(origin: { lat: number; lng: number }, des
         const url = new URL('https://api.olamaps.io/routing/v1/directions')
         url.searchParams.set('origin', `${origin.lat},${origin.lng}`)
         url.searchParams.set('destination', `${dest.lat},${dest.lng}`)
+        if (viaPoints && viaPoints.length > 0) {
+            const waypointsStr = viaPoints.map(p => `${p.lat},${p.lng}`).join('|')
+            url.searchParams.set('waypoints', waypointsStr)
+        }
         url.searchParams.set('api_key', apiKey)
 
         const res = await fetch(url.toString(), {
