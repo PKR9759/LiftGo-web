@@ -14,8 +14,12 @@ import { toast } from 'sonner'
 import type { User, Review } from '@/types'
 
 const schema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  phone: z.string().optional(),
+  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(80, 'Name is too long'),
+  phone: z
+    .string()
+    .trim()
+    .optional()
+    .refine((v) => !v || /^[0-9]{10}$/.test(v), 'Phone must be exactly 10 digits'),
   role: z.enum(['rider', 'driver', 'both']),
 })
 
@@ -130,6 +134,9 @@ export default function ProfilePage() {
           <div>
             <Label className="text-sm mb-1 block">Phone</Label>
             <Input type="tel" {...register('phone')} />
+            {errors.phone && (
+              <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>
+            )}
           </div>
 
           <div>

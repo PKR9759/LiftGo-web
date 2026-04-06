@@ -77,6 +77,14 @@ export default function RideDetailPage() {
   const handleBook = async () => {
     if (!loggedIn) { router.push('/auth/login'); return }
     if (!ride) return
+    if (!Number.isInteger(seats) || seats < 1) {
+      toast.error('Please enter a valid seat count')
+      return
+    }
+    if (seats > ride.available_seats) {
+      toast.error(`Only ${ride.available_seats} seat(s) are available`)
+      return
+    }
     setBooking(true)
     try {
       const res = await createBooking({
@@ -118,7 +126,7 @@ export default function RideDetailPage() {
       {/* header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-1 flex-wrap">
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 break-words">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 wrap-break-word">
             {ride.origin_label} → {ride.dest_label}
           </h1>
           <Badge variant={rb.variant} className={`${rb.className || ''} ${rb.pulse ? 'animate-pulse' : ''}`}>
@@ -250,7 +258,23 @@ export default function RideDetailPage() {
                     max={ride.available_seats}
                     disabled={ride.available_seats === 0}
                     value={seats}
-                    onChange={e => setSeats(parseInt(e.target.value))}
+                    onChange={e => {
+                      const raw = e.target.value
+                      if (raw === '') {
+                        setSeats(1)
+                        return
+                      }
+                      const parsed = Number(raw)
+                      if (!Number.isFinite(parsed)) {
+                        setSeats(1)
+                        return
+                      }
+                      const normalized = Math.min(
+                        Math.max(Math.floor(parsed), 1),
+                        Math.max(ride.available_seats, 1)
+                      )
+                      setSeats(normalized)
+                    }}
                   />
                 </div>
                 <div className="flex items-center justify-between text-sm mb-4">

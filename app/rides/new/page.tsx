@@ -26,10 +26,10 @@ const MapPicker = dynamic(() => import("@/components/map/MapPicker"), {
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const schema = z.object({
-  departure_at: z.string().min(1, "Pick a date and time"),
-  total_seats: z.coerce.number().min(1).max(8),
-  price_per_seat: z.coerce.number().min(0),
-  notes: z.string().optional(),
+  departure_at: z.string().trim().min(1, "Pick a date and time"),
+  total_seats: z.coerce.number().int("Seats must be a whole number").min(1, "At least 1 seat is required").max(8, "You can offer at most 8 seats"),
+  price_per_seat: z.coerce.number().min(0, "Price cannot be negative").max(5000, "Price per seat is too high"),
+  notes: z.string().trim().max(300, "Notes must be at most 300 characters").optional(),
   is_recurring: z.boolean(),
 });
 

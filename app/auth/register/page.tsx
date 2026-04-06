@@ -16,11 +16,15 @@ import { useGuestOnly } from '@/hooks/useRequireAuth'
 import { toast } from 'sonner'
 
 const schema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Invalid email'),
-  phone: z.string().optional(),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  confirm: z.string(),
+  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(80, 'Name is too long'),
+  email: z.string().trim().min(1, 'Email is required').email('Enter a valid email address'),
+  phone: z
+    .string()
+    .trim()
+    .optional()
+    .refine((v) => !v || /^[0-9]{10}$/.test(v), 'Phone must be exactly 10 digits'),
+  password: z.string().min(1, 'Password is required').min(8, 'Password must be at least 8 characters'),
+  confirm: z.string().min(1, 'Please confirm your password'),
   role: z.enum(['rider', 'driver', 'both']),
 }).refine(d => d.password === d.confirm, {
   message: 'Passwords do not match',

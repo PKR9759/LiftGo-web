@@ -25,7 +25,7 @@ const MapPicker = dynamic(() => import("@/components/map/MapPicker"), {
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const schema = z.object({
-  seats_needed: z.coerce.number().min(1).max(8),
+  seats_needed: z.coerce.number().int('Seats must be a whole number').min(1, 'At least 1 seat is required').max(8, 'You can request at most 8 seats'),
   is_recurring: z.boolean(),
 });
 
