@@ -160,6 +160,7 @@ export default function ManageRidePage() {
     const [currentTime, setCurrentTime] = useState<number>(Date.now())
     const [summary, setSummary] = useState<StatusSummary | null>(null)
     const [countdown, setCountdown] = useState(0)
+    const [chatText, setChatText] = useState('')
 
     const loadData = async () => {
         try {
@@ -223,6 +224,7 @@ export default function ManageRidePage() {
     }, [ride?.status])
 
     const [driverPos, setDriverPos] = useState<{ lat: number, lng: number, timestamp: number } | null>(null)
+    const { messages: chatMessages, sendMessage } = useDriverLocation(id, !!(ride?.status === 'active'), loadData)
     useEffect(() => {
         if (ride?.status !== 'active') return
         const watchId = navigator.geolocation.watchPosition(
@@ -259,6 +261,13 @@ export default function ManageRidePage() {
         } finally {
             setActionLoading(false)
         }
+    }
+
+    const handleSendChat = () => {
+        const trimmed = chatText.trim()
+        if (!trimmed) return
+        sendMessage(trimmed)
+        setChatText('')
     }
 
     if (loading && !ride) return <div className="p-10 text-center animate-pulse">Loading manage portal...</div>
@@ -355,6 +364,43 @@ export default function ManageRidePage() {
                             status: b.status,
                         }))}
                 />
+            )}
+
+            {ride.status === 'active' && (
+                <div className="bg-white border rounded-xl p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="font-semibold text-slate-900">Chat</h2>
+                        <span className="text-xs text-slate-400">Messages sync live</span>
+                    </div>
+                    <div className="flex flex-col gap-2 h-56 overflow-y-auto bg-slate-50 border rounded-xl p-3">
+                        {chatMessages.length === 0 ? (
+                            <p className="text-xs text-center text-slate-400 py-10">No messages yet.</p>
+                        ) : (
+                            chatMessages.map((msg: any, index: number) => {
+                                const isDriverMessage = msg.from === 'driver'
+                                return (
+                                    <div key={`${index}-${msg.text}`} className={`flex ${isDriverMessage ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${isDriverMessage ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-slate-900 border rounded-bl-sm'}`}>
+                                            <p className="whitespace-pre-wrap wrap-break-word">{msg.text}</p>
+                                            <span className={`mt-1 block text-[10px] ${isDriverMessage ? 'text-blue-100 text-right' : 'text-slate-400'}`}>
+                                                {isDriverMessage ? 'Driver' : 'Rider'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )
+                            })
+                        )}
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                        <Input
+                            value={chatText}
+                            onChange={e => setChatText(e.target.value)}
+                            placeholder="Type a message..."
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat() }}
+                        />
+                        <Button onClick={handleSendChat}>Send</Button>
+                    </div>
+                </div>
             )}
 
             <div>

@@ -199,6 +199,35 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <div className="mb-6 rounded-xl border bg-white p-4 shadow-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white">
+            <Bell className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-900">Push notifications</p>
+            <p className="text-sm text-slate-500">
+              {permission === 'denied'
+                ? 'Notifications are blocked in this browser.'
+                : isSubscribed
+                  ? 'You will receive ride and booking alerts.'
+                  : 'Enable alerts for booking confirmations, ride starts, and ride updates.'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {isSubscribed ? (
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
+              Enabled
+            </span>
+          ) : (
+            <Button size="sm" onClick={subscribe} disabled={isLoading || permission === 'denied'}>
+              {isLoading ? 'Enabling...' : 'Enable notifications'}
+            </Button>
+          )}
+        </div>
+      </div>
+
       <div className="flex gap-1 bg-slate-100 rounded-lg p-1 mb-6 overflow-x-auto shadow-inner">
         {tabs.map(t => (
           <button
@@ -287,7 +316,7 @@ export default function DashboardPage() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <p className="font-semibold text-slate-900 break-words">
+                          <p className="font-semibold text-slate-900 wrap-break-word">
                             {ride.origin_label} → {ride.dest_label}
                           </p>
                           <Badge
@@ -362,7 +391,7 @@ export default function DashboardPage() {
                         </p>
                       )}
                       {seek.is_recurring && (
-                        <p className="text-xs text-slate-400 mt-1 font-medium text-emerald-600">Recurring</p>
+                        <p className="text-xs mt-1 font-medium text-emerald-600">Recurring</p>
                       )}
                     </div>
                     {seek.status === 'active' && (

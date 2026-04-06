@@ -75,6 +75,7 @@ export function usePushNotifications() {
 
             const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
             if (!vapidKey) {
+                toast.error('Push notifications are not configured for this deployment.')
                 console.error('NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set')
                 return
             }
@@ -94,7 +95,8 @@ export function usePushNotifications() {
             setIsSubscribed(true)
             toast.success('Notifications enabled!')
         } catch (err: any) {
-            console.warn('Push subscription failed silently (disabled in development):', err)
+            console.warn('Push subscription failed:', err)
+            toast.error(err?.response?.data?.error || 'Unable to enable notifications right now')
         } finally {
             setIsLoading(false)
         }
