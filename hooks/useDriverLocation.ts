@@ -15,9 +15,11 @@ export function useDriverLocation(bookingId: string, enabled: boolean, onStatusU
     const [messages, setMessages] = useState<ChatMessage[]>([])
 
     const sendMessage = (text: string) => {
-        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-            ws.current.send(JSON.stringify({ type: 'message', text }))
+        if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
+            toast.error('Chat is disconnected. Reconnecting...')
+            return
         }
+        ws.current.send(JSON.stringify({ type: 'message', text }))
     }
 
     useEffect(() => {
@@ -88,8 +90,11 @@ export function useDriverLocation(bookingId: string, enabled: boolean, onStatusU
             }
 
             socket.onerror = (err) => {
-                console.error('WebSocket error:', err)
-                toast.error('Location sharing failed')
+                console.error('WebSocket error:', {
+                    readyState: socket.readyState,
+                    url: socket.url,
+                    error: err,
+                })
                 // onclose will be called after onerror naturally, triggering the reconnect loop
             }
         }

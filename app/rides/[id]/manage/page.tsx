@@ -133,10 +133,19 @@ function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
                 )}
                 {showPickupNoshow && (
                     <>
-                        {booking.status === 'rider_ready' && (
-                            <Button size="sm" onClick={() => handleAction('pickup')} disabled={actionLoading}>Pick Up</Button>
-                        )}
-                        <Button size="sm" variant="destructive" onClick={() => handleAction('noshow')} disabled={actionLoading}>No Show</Button>
+                        <Button size="sm" onClick={() => handleAction('pickup')} disabled={actionLoading}>Mark Picked Up</Button>
+                        <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                                if (window.confirm(`Mark ${booking.rider_name} as no-show?`)) {
+                                    handleAction('noshow')
+                                }
+                            }}
+                            disabled={actionLoading}
+                        >
+                            Mark No-Show
+                        </Button>
                     </>
                 )}
                 {showDropoff && (

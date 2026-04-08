@@ -40,6 +40,10 @@ export default function RideDetailPage() {
   const [seats, setSeats] = useState(1)
   const [booking, setBooking] = useState(false)
   const [summary, setSummary] = useState<any>(null)
+  const [pickupLat, setPickupLat] = useState('')
+  const [pickupLng, setPickupLng] = useState('')
+  const [dropoffLat, setDropoffLat] = useState('')
+  const [dropoffLng, setDropoffLng] = useState('')
 
   const currentUser = getUser()
   const loggedIn = !!currentUser
@@ -48,6 +52,10 @@ export default function RideDetailPage() {
     try {
       const res = await getRide(id)
       setRide(res.data)
+      setPickupLat(String(res.data.origin_lat))
+      setPickupLng(String(res.data.origin_lng))
+      setDropoffLat(String(res.data.dest_lat))
+      setDropoffLng(String(res.data.dest_lng))
 
       if (loggedIn) {
         try {
@@ -85,15 +93,25 @@ export default function RideDetailPage() {
       toast.error(`Only ${ride.available_seats} seat(s) are available`)
       return
     }
+
+    const pLat = Number(pickupLat)
+    const pLng = Number(pickupLng)
+    const dLat = Number(dropoffLat)
+    const dLng = Number(dropoffLng)
+    if (!Number.isFinite(pLat) || !Number.isFinite(pLng) || !Number.isFinite(dLat) || !Number.isFinite(dLng)) {
+      toast.error('Pickup and dropoff coordinates are required')
+      return
+    }
+
     setBooking(true)
     try {
       const res = await createBooking({
         ride_id: id,
         seats,
-        pickup_lat: ride.origin_lat,
-        pickup_lng: ride.origin_lng,
-        dropoff_lat: ride.dest_lat,
-        dropoff_lng: ride.dest_lng,
+        pickup_lat: pLat,
+        pickup_lng: pLng,
+        dropoff_lat: dLat,
+        dropoff_lng: dLng,
       })
       toast.success('Seat booked!')
       router.push(`/bookings/${res.data.id}`)
@@ -276,6 +294,24 @@ export default function RideDetailPage() {
                       setSeats(normalized)
                     }}
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div>
+                    <Label className="text-xs text-slate-500 mb-1 block">Pickup lat</Label>
+                    <Input type="number" value={pickupLat} onChange={(e) => setPickupLat(e.target.value)} step="any" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-slate-500 mb-1 block">Pickup lng</Label>
+                    <Input type="number" value={pickupLng} onChange={(e) => setPickupLng(e.target.value)} step="any" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-slate-500 mb-1 block">Dropoff lat</Label>
+                    <Input type="number" value={dropoffLat} onChange={(e) => setDropoffLat(e.target.value)} step="any" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-slate-500 mb-1 block">Dropoff lng</Label>
+                    <Input type="number" value={dropoffLng} onChange={(e) => setDropoffLng(e.target.value)} step="any" />
+                  </div>
                 </div>
                 <div className="flex items-center justify-between text-sm mb-4">
                   <span className="text-slate-500">Total</span>

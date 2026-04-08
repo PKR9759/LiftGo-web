@@ -23,9 +23,11 @@ export function useRideTracking(bookingId: string, enabled: boolean, onStatusUpd
     const ws = useRef<WebSocket | null>(null)
 
     const sendMessage = (text: string) => {
-        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-            ws.current.send(JSON.stringify({ type: 'message', text }))
+        if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
+            toast.error('Chat is disconnected. Reconnecting...')
+            return
         }
+        ws.current.send(JSON.stringify({ type: 'message', text }))
     }
 
     useEffect(() => {
@@ -68,7 +70,6 @@ export function useRideTracking(bookingId: string, enabled: boolean, onStatusUpd
                 setIsDriverOnline(false)
                 if (retryCount.current < 5) {
                     retryCount.current += 1
-                    toast.error('Driver connection lost, attempting reconnect...')
                     reconnectTimeout = setTimeout(connectAndListen, 3000)
                 } else {
                     toast.error('Could not restore connection to driver.')
@@ -76,8 +77,11 @@ export function useRideTracking(bookingId: string, enabled: boolean, onStatusUpd
             }
 
             socket.onerror = (err) => {
-                console.error('WebSocket error:', err)
-                toast.error('Connection error with tracking server')
+                console.error('WebSocket error:', {
+                    readyState: socket.readyState,
+                    url: socket.url,
+                    error: err,
+                })
             }
         }
 

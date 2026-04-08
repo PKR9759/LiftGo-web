@@ -36,6 +36,16 @@ const rideBadge: Record<string, { variant: 'default' | 'secondary' | 'destructiv
   cancelled: { variant: 'destructive' },
 }
 
+const statusText: Record<string, string> = {
+  pending: 'Pending approval',
+  confirmed: 'Confirmed',
+  rider_ready: "I'm Ready",
+  picked_up: 'On the way',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  no_show: 'No-show',
+}
+
 function ReviewStars({ rating, onChange }: { rating: number; onChange?: (r: number) => void }) {
   return (
     <div className="flex items-center gap-1">
@@ -189,7 +199,7 @@ export default function BookingDetailPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Booking details</h1>
             <Badge variant={bb.variant} className={bb.className}>
-              {booking.status.replace('_', ' ')}
+              {statusText[booking.status] || booking.status.replace('_', ' ')}
             </Badge>
             {booking.ride_status && (
               <Badge variant={rb.variant} className={`${rb.className || ''} ${rb.pulse ? 'animate-pulse' : ''}`}>
@@ -277,6 +287,9 @@ export default function BookingDetailPage() {
             <Button
               disabled={actionLoading || !canMarkReady}
               onClick={async () => {
+                if (!window.confirm("Share your current location and mark yourself ready?")) {
+                  return
+                }
                 setActionLoading(true)
                 try {
                   const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -289,14 +302,7 @@ export default function BookingDetailPage() {
                   setBooking(res.data)
                   toast.success("Driver notified you're ready!")
                 } catch (err: any) {
-                  if (err?.code === 1) {
-                    await markRiderReady(id)
-                    const res = await getBooking(id)
-                    setBooking(res.data)
-                    toast.success("Marked as ready — location unavailable")
-                  } else {
-                    toast.error(err?.response?.data?.error || 'Failed to mark ready. Try again.')
-                  }
+                  toast.error(err?.response?.data?.error || 'Failed to mark ready. Please enable GPS and try again.')
                 } finally {
                   setActionLoading(false)
                 }

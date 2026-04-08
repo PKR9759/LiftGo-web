@@ -49,6 +49,16 @@ const statusColor: Record<string, { variant: 'default' | 'secondary' | 'destruct
   expired: { variant: 'destructive' },
 }
 
+const bookingStatusLabel: Record<string, string> = {
+  pending: 'Pending approval',
+  confirmed: 'Confirmed',
+  rider_ready: "I'm Ready",
+  picked_up: 'On the way',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  no_show: 'No-show',
+}
+
 export default function DashboardPage() {
   const { ready } = useRequireAuth()
   const { permission, isSubscribed, isLoading, subscribe } = usePushNotifications()
@@ -396,7 +406,7 @@ export default function DashboardPage() {
                           variant={statusColor[b.status]?.variant || 'secondary'}
                           className={statusColor[b.status]?.className}
                         >
-                          {b.status.replace('_', ' ')}
+                          {bookingStatusLabel[b.status] || b.status.replace('_', ' ')}
                         </Badge>
                       </div>
                       <p className="text-sm text-slate-500">
@@ -449,7 +459,7 @@ export default function DashboardPage() {
                           variant={statusColor[b.status]?.variant || 'secondary'}
                           className={statusColor[b.status]?.className}
                         >
-                          {b.status.replace('_', ' ')}
+                          {bookingStatusLabel[b.status] || b.status.replace('_', ' ')}
                         </Badge>
                       </div>
                       <p className="text-sm text-slate-500">
