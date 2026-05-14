@@ -2,19 +2,24 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const protectedRoutes = [
-  '/dashboard',
-  '/profile',
-  '/rides/new',
-  '/seeks/new',
-  '/bookings',
-]
+const getProtectedRoutes = () => {
+  if (process.env.PROTECTED_ROUTES) {
+    return process.env.PROTECTED_ROUTES.split(',').map(s => s.trim()).filter(Boolean)
+  }
+  return [
+    '/dashboard',
+    '/profile',
+    '/rides/new',
+    '/bookings',
+  ]
+}
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get('access_token')?.value || request.cookies.get('refresh_token')?.value
   const { pathname } = request.nextUrl
 
-  const isProtected = protectedRoutes.some(route =>
+  const routes = getProtectedRoutes()
+  const isProtected = routes.some(route =>
     pathname.startsWith(route)
   )
 
@@ -30,7 +35,6 @@ export const config = {
     '/dashboard/:path*',
     '/profile/:path*',
     '/rides/new',
-    '/seeks/new',
     '/bookings/:path*',
   ],
 }
