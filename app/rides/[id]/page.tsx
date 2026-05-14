@@ -44,6 +44,7 @@ export default function RideDetailPage() {
   const [pickupLng, setPickupLng] = useState('')
   const [dropoffLat, setDropoffLat] = useState('')
   const [dropoffLng, setDropoffLng] = useState('')
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   const currentUser = getUser()
   const loggedIn = !!currentUser
@@ -106,6 +107,7 @@ export default function RideDetailPage() {
     setBooking(true)
     try {
       const res = await createBooking({
+        idempotency_key: idempotencyKey,
         ride_id: id,
         seats,
         pickup_lat: pLat,

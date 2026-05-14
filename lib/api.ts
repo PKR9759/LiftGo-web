@@ -1,8 +1,6 @@
 // lib/api.ts
 import axios from 'axios'
-import type {
-  AuthResponse, User, Ride, Booking, Review
-} from '@/types'
+import type { AuthResponse, User, Ride, Booking, Review, CreateBookingRequest } from '@/types'
 
 const client = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -129,13 +127,8 @@ export const cancelRide = (id: string) =>
   client.delete(`/api/rides/${id}`)
 
 // ── bookings ──────────────────────────────────────────────
-export const createBooking = (data: {
-  ride_id: string; seats: number
-  pickup_lat: number
-  pickup_lng: number
-  dropoff_lat: number
-  dropoff_lng: number
-}) => client.post<Booking>('/api/bookings', data)
+export const createBooking = (data: CreateBookingRequest) =>
+  client.post<Booking>('/api/bookings', data)
 
 export const getMyBookings = () =>
   client.get<Booking[]>('/api/bookings/mine')

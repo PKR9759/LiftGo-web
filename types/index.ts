@@ -105,6 +105,7 @@ export interface LatLng {
 }
 
 export interface CreateBookingRequest {
+  idempotency_key?: string
   ride_id: string
   seats: number
   pickup_lat: number
