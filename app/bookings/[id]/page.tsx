@@ -111,17 +111,22 @@ export default function BookingDetailPage() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 10000)
+    // Poll every 30s — less aggressive, still keeps UI fresh
+    const interval = setInterval(load, 30000)
     return () => clearInterval(interval)
   }, [id])
 
   // Fetch status summary when we have booking.ride_id
+  const rideId = booking?.ride_id ?? ''
+  const rideStatus = booking?.ride_status ?? ''
   useEffect(() => {
-    if (!booking?.ride_id) return
-    loadSummary(booking.ride_id)
-    const interval = setInterval(() => loadSummary(booking.ride_id), 10000)
+    if (!rideId) return
+    // Stop polling for terminal ride states — no point hitting server
+    if (rideStatus === 'completed' || rideStatus === 'cancelled') return
+    loadSummary(rideId)
+    const interval = setInterval(() => loadSummary(rideId), 20000)
     return () => clearInterval(interval)
-  }, [booking?.ride_id])
+  }, [rideId, rideStatus])
 
   // Fix 9 — local countdown timer
   useEffect(() => {
@@ -141,9 +146,17 @@ export default function BookingDetailPage() {
   const canMarkReady = summary?.user_booking?.can_mark_ready ?? false
   const bookingIsCancellable = booking && ['pending', 'confirmed'].includes(booking.status)
 
+  // WS allows chat before the ride starts, and live GPS once it does.
   const isTrackingSupported = ['confirmed', 'rider_ready', 'picked_up'].includes(booking?.status || '')
-  useDriverLocation(String(id), !!(isDriver && isTrackingSupported), load)
-  const { driverLocation, isDriverOnline, messages: chatMessages, sendMessage } = useRideTracking(String(id), !!(isRider && isTrackingSupported), load)
+  
+  const driverWs = useDriverLocation(String(id), !!(booking && isDriver && isTrackingSupported), load)
+  const riderWs = useRideTracking(String(id), !!(booking && isRider && isTrackingSupported), load)
+
+  // Merge hook outputs based on role so the UI chat component works for both
+  const chatMessages = isDriver ? driverWs.messages : riderWs.messages
+  const sendMessage = isDriver ? driverWs.sendMessage : riderWs.sendMessage
+  const isDriverOnline = isDriver ? true : riderWs.isDriverOnline
+  const driverLocation = isDriver ? null : riderWs.driverLocation
 
   const handleReview = async () => {
     if (!booking) return

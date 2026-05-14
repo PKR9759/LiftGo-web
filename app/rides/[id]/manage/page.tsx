@@ -10,9 +10,9 @@ import { getUser } from '@/lib/auth'
 import { toast } from 'sonner'
 import type { Ride, Booking } from '@/types'
 import { format } from 'date-fns'
-import { useDriverLocation } from '@/hooks/useDriverLocation'
 import LiveMap from '@/components/map/LiveMap'
 import { haversineDistance } from '@/lib/utils'
+import { useDriverLocation } from '@/hooks/useDriverLocation'
 
 // Fix 7 — consistent badge colors
 const bookingBadgeStyle: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string }> = {
@@ -47,6 +47,18 @@ type StatusSummary = {
 // Fix 6 — per-booking action buttons
 function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
     const [actionLoading, setActionLoading] = useState(false)
+    const [showChat, setShowChat] = useState(false)
+    const [msgText, setMsgText] = useState('')
+
+    // Only connect WS if trackable
+    const isTrackingSupported = ['confirmed', 'rider_ready', 'picked_up'].includes(booking.status)
+    const { messages, sendMessage } = useDriverLocation(String(booking.id), isTrackingSupported, onUpdate, driverPos || null)
+
+    const handleSendChat = () => {
+        if (!msgText.trim()) return
+        sendMessage(msgText)
+        setMsgText('')
+    }
 
     const handleAction = async (action: 'confirm' | 'decline' | 'pickup' | 'drop' | 'noshow') => {
         setActionLoading(true)
@@ -108,7 +120,10 @@ function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
         <div className="bg-white border rounded-xl p-4 flex flex-col gap-3">
             <div className="flex justify-between items-start">
                 <div>
-                    <p className="font-semibold">{booking.rider_name} <span className="text-slate-400 text-xs font-normal">({booking.seats} seats)</span></p>
+                    <p className="font-semibold">
+                        {booking.rider_name}
+                        <span className="text-slate-400 text-xs font-normal ml-1">({booking.seats} seats)</span>
+                    </p>
                     <p className="text-xs text-slate-500 mt-1">From: {booking.origin_label}</p>
                     <p className="text-xs text-slate-500">To: {booking.dest_label}</p>
                     {!isTerminal && booking.status !== 'picked_up' && (
@@ -119,12 +134,27 @@ function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
                         </span>
                     )}
                 </div>
-                <Badge variant={bb.variant} className={bb.className}>
-                    {booking.status.replace('_', ' ')}
-                </Badge>
+                <div className="flex items-center gap-2">
+                    {isTrackingSupported && (
+                        <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => setShowChat(!showChat)}
+                            className="relative h-7 px-2 text-xs"
+                        >
+                            {showChat ? 'Close Chat' : 'Chat'}
+                            {!showChat && messages.length > 0 && (
+                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white" />
+                            )}
+                        </Button>
+                    )}
+                    <Badge variant={bb.variant} className={bb.className}>
+                        {booking.status.replace('_', ' ')}
+                    </Badge>
+                </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="flex flex-wrap gap-2 mt-1">
                 {showConfirmDecline && (
                     <>
                         <Button size="sm" onClick={() => handleAction('confirm')} disabled={actionLoading}>Confirm</Button>
@@ -152,6 +182,36 @@ function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
                     <Button size="sm" onClick={() => handleAction('drop')} disabled={actionLoading} className="bg-emerald-600 hover:bg-emerald-700 text-white">Drop Off</Button>
                 )}
             </div>
+
+            {showChat && isTrackingSupported && (
+                <div className="mt-2 border-t pt-3 flex flex-col gap-2">
+                    <div className="bg-slate-50 border rounded-lg p-2 h-40 overflow-y-auto flex flex-col gap-1.5">
+                        {messages.length === 0 && (
+                            <p className="text-xs text-slate-400 text-center my-auto">No messages yet</p>
+                        )}
+                        {messages.map((msg: any, idx: number) => {
+                            const isMine = msg.from === 'driver'
+                            return (
+                                <div key={idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[80%] px-2.5 py-1.5 text-xs rounded-xl ${isMine ? 'bg-blue-600 text-white rounded-br-none' : 'bg-slate-200 text-slate-900 rounded-bl-none'}`}>
+                                        {msg.text}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                    <div className="flex gap-1.5">
+                        <Input 
+                            value={msgText} 
+                            onChange={e => setMsgText(e.target.value)} 
+                            placeholder="Type a message..." 
+                            onKeyDown={e => { if (e.key === 'Enter') handleSendChat() }}
+                            className="h-8 text-xs" 
+                        />
+                        <Button size="sm" className="h-8 px-2.5 text-xs" onClick={handleSendChat}>Send</Button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
@@ -202,9 +262,12 @@ export default function ManageRidePage() {
     useEffect(() => {
         loadData()
         loadSummary()
-        const interval = setInterval(() => { loadData(); loadSummary() }, 5000)
+        // 5s was generating 24 req/min per tab, burning through rate limits.
+        // 10s during active ride (time-sensitive), 15s otherwise.
+        const pollInterval = ride?.status === 'active' ? 10000 : 15000
+        const interval = setInterval(() => { loadData(); loadSummary() }, pollInterval)
         return () => clearInterval(interval)
-    }, [id])
+    }, [id, ride?.status])
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(Date.now()), 1000)

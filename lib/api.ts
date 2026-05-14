@@ -87,6 +87,8 @@ export const logoutUser = () => client.post<{ message: string }>('/api/auth/logo
 
 export const getAuthMe = () => client.get<{ user: User }>('/api/auth/me')
 
+export const refreshAuth = () => client.post<{ access_token: string }>('/api/auth/refresh')
+
 // ── users ─────────────────────────────────────────────────
 export const getMe = () =>
   client.get<User>('/api/users/me')
