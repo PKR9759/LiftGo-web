@@ -79,7 +79,6 @@ export default function Navbar() {
       { href: '/', label: 'Home' },
       { href: '/liveboard', label: 'Live board' },
       { href: '/rides/new', label: 'Offer ride' },
-      { href: '/seeks/new', label: 'Need ride' },
       { href: '/dashboard', label: 'Dashboard' },
     ]
     : [{ href: '/', label: 'Home' }]

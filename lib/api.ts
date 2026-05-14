@@ -1,7 +1,7 @@
 // lib/api.ts
 import axios from 'axios'
 import type {
-  AuthResponse, User, Ride, Seek, Booking, Review
+  AuthResponse, User, Ride, Booking, Review
 } from '@/types'
 
 const client = axios.create({
@@ -128,29 +128,9 @@ export const updateRideStatus = (id: string, status: 'active' | 'completed') =>
 export const cancelRide = (id: string) =>
   client.delete(`/api/rides/${id}`)
 
-// ── seeks ─────────────────────────────────────────────────
-export const getNearbySeeks = (params: {
-  origin_lat: number; origin_lng: number
-  dest_lat: number; dest_lng: number
-  radius?: number
-}) => client.get<Seek[]>('/api/seeks/nearby', { params })
-
-export const getMySeeks = () =>
-  client.get<Seek[]>('/api/seeks/mine')
-
-export const createSeek = (data: {
-  origin_lat: number; origin_lng: number; origin_label: string
-  dest_lat: number; dest_lng: number; dest_label: string
-  seats_needed: number; is_recurring: boolean
-  recurrence_days?: number[]
-}) => client.post<Seek>('/api/seeks', data)
-
-export const cancelSeek = (id: string) =>
-  client.delete(`/api/seeks/${id}`)
-
 // ── bookings ──────────────────────────────────────────────
 export const createBooking = (data: {
-  ride_id: string; seats: number; seek_id?: string
+  ride_id: string; seats: number
   pickup_lat: number
   pickup_lng: number
   dropoff_lat: number

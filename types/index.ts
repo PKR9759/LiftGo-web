@@ -42,26 +42,6 @@ export interface Ride {
   match_score?: number
 }
 
-export interface Seek {
-  id: string
-  seeker_id: string
-  seeker_name: string
-  seeker_avg_rating: number
-  seeker_total_reviews: number
-  origin_lat: number
-  origin_lng: number
-  origin_label: string
-  dest_lat: number
-  dest_lng: number
-  dest_label: string
-  seats_needed: number
-  is_recurring: boolean
-  recurrence_days?: number[]
-  status: 'active' | 'matched' | 'expired' | 'cancelled'
-  expires_at: string
-  created_at: string
-}
-
 export interface Booking {
   id: string
   ride_id: string
@@ -69,7 +49,6 @@ export interface Booking {
   rider_name: string
   driver_id: string
   driver_name: string
-  seek_id?: string
   origin_label: string
   dest_label: string
   departure_at: string
@@ -127,7 +106,6 @@ export interface LatLng {
 
 export interface CreateBookingRequest {
   ride_id: string
-  seek_id?: string
   seats: number
   pickup_lat: number
   pickup_lng: number

@@ -7,16 +7,16 @@ import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
-  getMyRides, getMySeeks,
+  getMyRides,
   getMyBookings, getIncomingBookings,
   confirmBooking, cancelBooking,
-  cancelRide, cancelSeek,
+  cancelRide,
 } from '@/lib/api'
 import { getUser } from '@/lib/auth'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { toast } from 'sonner'
-import type { Ride, Seek, Booking } from '@/types'
+import type { Ride, Booking } from '@/types'
 import { format } from 'date-fns'
 import { Bell, X } from 'lucide-react'
 
@@ -25,7 +25,7 @@ const MapView = dynamic(
   { ssr: false }
 )
 
-type Tab = 'my-rides' | 'my-seeks' | 'incoming' | 'my-bookings'
+type Tab = 'my-rides' | 'incoming' | 'my-bookings'
 
 const statusColor: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string }> = {
   // Booking statuses
@@ -44,9 +44,6 @@ const statusColor: Record<string, { variant: 'default' | 'secondary' | 'destruct
   active: { variant: 'default', className: 'bg-green-600 text-white' },
   full: { variant: 'outline', className: 'border-yellow-400 text-yellow-700 bg-yellow-50' },
 
-  // Seek statuses
-  matched: { variant: 'secondary' },
-  expired: { variant: 'destructive' },
 }
 
 const bookingStatusLabel: Record<string, string> = {
@@ -67,7 +64,6 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
   const [tab, setTab] = useState<Tab>('my-rides')
   const [myRides, setMyRides] = useState<Ride[]>([])
-  const [mySeeks, setMySeeks] = useState<Seek[]>([])
   const [incoming, setIncoming] = useState<Booking[]>([])
   const [myBookings, setMyBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,7 +74,6 @@ export default function DashboardPage() {
   const getFilterOptions = () => {
     switch (tab) {
       case 'my-rides': return ['all', 'scheduled', 'active', 'completed', 'cancelled']
-      case 'my-seeks': return ['all', 'active', 'matched', 'expired', 'cancelled']
       case 'incoming': return ['all', 'pending', 'confirmed', 'cancelled', 'completed']
       case 'my-bookings': return ['all', 'pending', 'confirmed', 'rider_ready', 'picked_up', 'completed', 'cancelled', 'no_show']
       default: return ['all']
@@ -103,7 +98,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setFilterStatus('all')
-    if (tab === 'my-seeks') setSortBy('newest')
   }, [tab])
 
   useEffect(() => {
@@ -111,14 +105,12 @@ export default function DashboardPage() {
     const load = async () => {
       setLoading(true)
       try {
-        const [ridesRes, seeksRes, incomingRes, bookingsRes] = await Promise.all([
+        const [ridesRes, incomingRes, bookingsRes] = await Promise.all([
           getMyRides(),
-          getMySeeks(),
           getIncomingBookings(),
           getMyBookings(),
         ])
         setMyRides(ridesRes.data)
-        setMySeeks(seeksRes.data)
         setIncoming(incomingRes.data)
         setMyBookings(bookingsRes.data)
       } catch {
@@ -169,21 +161,8 @@ export default function DashboardPage() {
     }
   }
 
-  const handleCancelSeek = async (id: string) => {
-    try {
-      await cancelSeek(id)
-      setMySeeks(prev =>
-        prev.map(s => s.id === id ? { ...s, status: 'cancelled' as const } : s)
-      )
-      toast.success('Seek cancelled')
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to cancel seek')
-    }
-  }
-
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: 'my-rides', label: 'My rides', count: myRides.length },
-    { key: 'my-seeks', label: 'My seeks', count: mySeeks.filter(s => s.status === 'active').length },
     { key: 'incoming', label: 'Incoming', count: incoming.filter(b => b.status === 'pending').length },
     { key: 'my-bookings', label: 'My bookings', count: myBookings.length },
   ]
@@ -202,9 +181,6 @@ export default function DashboardPage() {
         <div className="flex gap-2">
           <Link href="/rides/new">
             <Button size="sm">+ Offer ride</Button>
-          </Link>
-          <Link href="/seeks/new">
-            <Button size="sm" variant="outline">+ Need ride</Button>
           </Link>
         </div>
       </div>
@@ -269,7 +245,7 @@ export default function DashboardPage() {
             className="text-sm border rounded-md px-2 py-1 bg-transparent focus:outline-none focus:ring-1 focus:ring-slate-400"
           >
             <option value="newest">Newest First</option>
-            {tab !== 'my-seeks' && <option value="soonest">Soonest Departure</option>}
+            <option value="soonest">Soonest Departure</option>
           </select>
         </div>
       </div>
@@ -344,51 +320,7 @@ export default function DashboardPage() {
             )
           )}
 
-          {tab === 'my-seeks' && (
-            filterAndSort(mySeeks).length === 0 ? (
-              <Empty message={filterStatus === 'all' ? "No seeks posted yet" : "No seeks found with this filter"} action={filterStatus === 'all' ? { label: 'Post a seek', href: '/seeks/new' } : undefined} />
-            ) : (
-              filterAndSort(mySeeks).map(seek => (
-                <div key={seek.id} className="bg-white border rounded-xl p-5 hover:shadow-md transition-shadow">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-semibold text-slate-900">
-                          {seek.origin_label} → {seek.dest_label}
-                        </p>
-                        <Badge
-                          variant={statusColor[seek.status]?.variant || 'secondary'}
-                          className={statusColor[seek.status]?.className}
-                        >
-                          {seek.status}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-slate-500">
-                        {seek.seats_needed} seat{seek.seats_needed !== 1 ? 's' : ''} needed
-                      </p>
-                      {seek.status === 'active' && (
-                        <p className="text-xs text-slate-400 mt-1">
-                          Expires {format(new Date(seek.expires_at), 'hh:mm a')}
-                        </p>
-                      )}
-                      {seek.is_recurring && (
-                        <p className="text-xs text-slate-400 mt-1 font-medium text-emerald-600">Recurring</p>
-                      )}
-                    </div>
-                    {seek.status === 'active' && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleCancelSeek(seek.id)}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))
-            )
-          )}
+
 
           {tab === 'incoming' && (
             filterAndSort(incoming).length === 0 ? (

@@ -5,9 +5,9 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { getNearbyRides, getNearbySeeks } from '@/lib/api'
+import { getNearbyRides } from '@/lib/api'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
-import type { Ride, Seek, LatLng } from '@/types'
+import type { Ride, LatLng } from '@/types'
 import { format } from 'date-fns'
 
 const MapPicker = dynamic(
@@ -15,7 +15,7 @@ const MapPicker = dynamic(
   { ssr: false, loading: () => <MapSkeleton height="420px" /> }
 )
 
-type Tab = 'rides' | 'seeks'
+
 
 function formatRupee(amount: number) {
   return `₹${amount.toFixed(2).replace(/\.00$/, '')}`
@@ -45,12 +45,9 @@ export default function HomePage() {
   const { ready } = useRequireAuth()
 
   const [rides, setRides] = useState<Ride[]>([])
-  const [seeks, setSeeks] = useState<Seek[]>([])
-  const [tab, setTab] = useState<Tab>('rides')
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null)
-  const [selectedSeek, setSelectedSeek] = useState<Seek | null>(null)
 
   const searchRef = useRef<(o: LatLng, d: LatLng) => void>(null)
 
@@ -69,7 +66,7 @@ export default function HomePage() {
     }
     if (minSeats !== '') {
       result = result.filter(i => {
-        const seats = (i as any).available_seats || (i as any).seats_needed || 0
+        const seats = (i as any).available_seats || 0
         return seats >= (minSeats as number)
       })
     }
@@ -81,12 +78,12 @@ export default function HomePage() {
         return pa - pb
       }
       if (sortBy === 'seats') {
-        const sa = (a as any).available_seats || (a as any).seats_needed || 0
-        const sb = (b as any).available_seats || (b as any).seats_needed || 0
+        const sa = (a as any).available_seats || 0
+        const sb = (b as any).available_seats || 0
         return sb - sa
       }
-      const ta = new Date((a as any).departure_at || (a as any).expires_at || a.created_at).getTime()
-      const tb = new Date((b as any).departure_at || (b as any).expires_at || b.created_at).getTime()
+      const ta = new Date((a as any).departure_at || a.created_at).getTime()
+      const tb = new Date((b as any).departure_at || b.created_at).getTime()
       return ta - tb
     })
   }
@@ -95,23 +92,14 @@ export default function HomePage() {
     setLoading(true)
     setSearched(true)
     try {
-      const [ridesRes, seeksRes] = await Promise.all([
-        getNearbyRides({
-          origin_lat: o.lat, origin_lng: o.lng,
-          dest_lat: d.lat, dest_lng: d.lng,
-          radius: 5000,
-        }),
-        getNearbySeeks({
-          origin_lat: o.lat, origin_lng: o.lng,
-          dest_lat: d.lat, dest_lng: d.lng,
-          radius: 5000,
-        }),
-      ])
+      const ridesRes = await getNearbyRides({
+        origin_lat: o.lat, origin_lng: o.lng,
+        dest_lat: d.lat, dest_lng: d.lng,
+        radius: 5000,
+      })
       setRides(ridesRes.data)
-      setSeeks(seeksRes.data)
     } catch {
       setRides([])
-      setSeeks([])
     } finally {
       setLoading(false)
     }
@@ -126,7 +114,6 @@ export default function HomePage() {
     d: LatLng | null
   ) => {
     setSelectedRide(null)
-    setSelectedSeek(null)
     if (o && d) {
       searchRef.current?.(o, d)
     }
@@ -134,10 +121,8 @@ export default function HomePage() {
 
   const clearSearch = () => {
     setRides([])
-    setSeeks([])
     setSearched(false)
     setSelectedRide(null)
-    setSelectedSeek(null)
     clearFilters()
   }
 
@@ -164,9 +149,6 @@ export default function HomePage() {
           <Link href="/rides/new">
             <Button size="sm">+ Offer ride</Button>
           </Link>
-          <Link href="/seeks/new">
-            <Button size="sm" variant="outline">+ Need ride</Button>
-          </Link>
         </div>
       </div>
 
@@ -186,31 +168,16 @@ export default function HomePage() {
             <div className="bg-white border rounded-xl p-6 text-center h-full
               flex flex-col items-center justify-center min-h-50">
               <p className="text-slate-400 text-sm mb-4">
-                Click two points on the map to find rides and seekers near your route
+                Click two points on the map to find rides near your route
               </p>
             </div>
           ) : (
             <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
-              {/* tabs */}
-              <div className="flex border-b">
-                <button
-                  onClick={() => { setTab('rides'); setSelectedRide(null) }}
-                  className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === 'rides'
-                    ? 'text-slate-900 border-b-2 border-slate-900 bg-slate-50'
-                    : 'text-slate-400 hover:text-slate-600'
-                    }`}
-                >
-                  Rides ({rides.length})
-                </button>
-                <button
-                  onClick={() => { setTab('seeks'); setSelectedSeek(null) }}
-                  className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === 'seeks'
-                    ? 'text-slate-900 border-b-2 border-slate-900 bg-slate-50'
-                    : 'text-slate-400 hover:text-slate-600'
-                    }`}
-                >
-                  Seekers ({seeks.length})
-                </button>
+              {/* header */}
+              <div className="px-4 py-3 border-b bg-slate-50">
+                <p className="text-sm font-medium text-slate-900">
+                  Available Rides ({rides.length})
+                </p>
               </div>
 
               {/* filter bar */}
@@ -262,7 +229,7 @@ export default function HomePage() {
                       </div>
                     ))}
                   </div>
-                ) : tab === 'rides' ? (
+                ) : (
                   <div className="divide-y text-slate-900">
                     {filterAndSort(rides).length === 0 ? (
                       <EmptyResults
@@ -277,26 +244,6 @@ export default function HomePage() {
                           selected={selectedRide?.id === ride.id}
                           onClick={() => setSelectedRide(
                             selectedRide?.id === ride.id ? null : ride
-                          )}
-                        />
-                      ))
-                    )}
-                  </div>
-                ) : (
-                  <div className="divide-y text-slate-900">
-                    {filterAndSort(seeks).length === 0 ? (
-                      <EmptyResults
-                        message={searched && (maxPrice || minSeats) ? "No seeks match filters" : "No seekers near this route"}
-                        action={!maxPrice && !minSeats ? { label: 'Post your need', href: '/seeks/new' } : undefined}
-                      />
-                    ) : (
-                      (filterAndSort(seeks) as Seek[]).map(seek => (
-                        <SeekResult
-                          key={seek.id}
-                          seek={seek}
-                          selected={selectedSeek?.id === seek.id}
-                          onClick={() => setSelectedSeek(
-                            selectedSeek?.id === seek.id ? null : seek
                           )}
                         />
                       ))
@@ -363,37 +310,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* selected seek detail */}
-      {selectedSeek && (
-        <div className="mt-4 bg-white border rounded-xl p-5 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="font-semibold text-slate-900">
-                  {selectedSeek.origin_label} → {selectedSeek.dest_label}
-                </h2>
-                <Badge
-                  variant={selectedSeek.status === 'cancelled' ? 'destructive' : selectedSeek.status === 'matched' ? 'secondary' : 'default'}
-                  className={selectedSeek.status === 'active' ? 'bg-blue-600 text-white' : ''}
-                >
-                  {selectedSeek.status}
-                </Badge>
-              </div>
-              <div className="text-sm text-slate-500 mb-3">
-                <span>{selectedSeek.seats_needed} seat{selectedSeek.seats_needed !== 1 ? 's' : ''} needed</span>
-                <span className="mx-2">·</span>
-                <span>Expires {format(new Date(selectedSeek.expires_at), 'dd MMM · hh:mm a')}</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 min-w-35">
-              <Button className="w-full" disabled>Offer ride (Coming soon)</Button>
-              <Link href={`/seeks/${selectedSeek.id}`}>
-                <Button variant="outline" className="w-full text-xs">View details</Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   )
 }
@@ -451,27 +368,7 @@ function RideResult({ ride, selected, onClick }: { ride: Ride; selected: boolean
   )
 }
 
-function SeekResult({ seek, selected, onClick }: { seek: Seek; selected: boolean; onClick: () => void }) {
-  return (
-    <div
-      onClick={onClick}
-      className={`p-4 cursor-pointer transition-all hover:bg-slate-50 border-b border-slate-100 last:border-0 ${selected ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : ''}`}
-    >
-      <div className="flex justify-between items-start mb-1">
-        <p className="font-semibold text-slate-900 text-sm truncate pr-4">
-          {seek.origin_label.split(',')[0]} → {seek.dest_label.split(',')[0]}
-        </p>
-        <Badge variant="outline" className="text-[10px] h-4 px-1 leading-none text-slate-600 font-medium">{seek.seats_needed} seats</Badge>
-      </div>
-      <div className="flex items-center gap-3 text-[11px] text-slate-500">
-        <span>Expires {format(new Date(seek.expires_at), 'hh:mm a')}</span>
-        {seek.is_recurring && (
-          <span className="text-emerald-600 font-semibold ml-2">Recurring</span>
-        )}
-      </div>
-    </div>
-  )
-}
+
 
 function EmptyResults({ message, action }: { message: string; action?: { label: string; href: string } }) {
   return (

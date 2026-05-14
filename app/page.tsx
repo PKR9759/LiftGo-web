@@ -193,7 +193,7 @@ export default function LandingPage() {
                             {
                                 icon: '📱',
                                 title: 'Real-time Live Board',
-                                desc: 'See all active rides and seekers on an interactive map. Find matches instantly.',
+                                desc: 'See all active rides on an interactive map. Find matches instantly.',
                             },
                             {
                                 icon: '💰',
@@ -269,10 +269,6 @@ export default function LandingPage() {
                                 <li className="flex items-start gap-2">
                                     <span className="text-white mt-0.5">✓</span>
                                     Find affordable rides going your way
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <span className="text-white mt-0.5">✓</span>
-                                    Post a &quot;seek&quot; and let drivers find you
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <span className="text-white mt-0.5">✓</span>
