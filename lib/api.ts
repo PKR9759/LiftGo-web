@@ -33,6 +33,12 @@ client.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Avoid automatic token refresh for auth actions that should fail immediately
+    const authActions = ['/api/auth/login', '/api/auth/register', '/api/auth/logout']
+    if (authActions.includes(originalRequest.url)) {
+      return Promise.reject(error)
+    }
+
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise(function (resolve, reject) {

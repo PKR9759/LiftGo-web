@@ -23,6 +23,9 @@ interface Props {
   ) => void;
   height?: string;
   enableViaPoints?: boolean;
+  // allow parent to programmatically set initial points
+  initialOrigin?: LatLng | null;
+  initialDestination?: LatLng | null;
 }
 
 // Helper to create circular marker
@@ -37,7 +40,7 @@ function createMarkerEl(color: string) {
   return el
 }
 
-export default function MapPicker({ onChange, height = '400px', enableViaPoints = false }: Props) {
+export default function MapPicker({ onChange, height = '400px', enableViaPoints = false, initialOrigin, initialDestination }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
 
@@ -154,6 +157,15 @@ export default function MapPicker({ onChange, height = '400px', enableViaPoints 
         setPicking('origin')
     }
   }
+
+  // Accept programmatic initial origin/destination from parent
+  useEffect(() => {
+    if (initialOrigin) setOrigin(initialOrigin)
+  }, [initialOrigin])
+
+  useEffect(() => {
+    if (initialDestination) setDest(initialDestination)
+  }, [initialDestination])
 
   const getValidViaPoints = () => viaPointsRef.current.map(v => v.location).filter(Boolean) as LatLng[]
 

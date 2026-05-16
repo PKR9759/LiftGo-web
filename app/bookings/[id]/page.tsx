@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getBooking, createReview, cancelBooking, markRiderReady, getRideStatusSummary } from '@/lib/api'
 import { getUser } from '@/lib/auth'
+import { extractErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useDriverLocation } from '@/hooks/useDriverLocation'
 import { useRideTracking } from '@/hooks/useRideTracking'
@@ -146,11 +147,12 @@ export default function BookingDetailPage() {
   const canMarkReady = summary?.user_booking?.can_mark_ready ?? false
   const bookingIsCancellable = booking && ['pending', 'confirmed'].includes(booking.status)
 
-  // WS allows chat before the ride starts, and live GPS once it does.
+  // WS allows chat and live GPS once confirmed
+  const isChatSupported = ['confirmed', 'rider_ready', 'picked_up'].includes(booking?.status || '')
   const isTrackingSupported = ['confirmed', 'rider_ready', 'picked_up'].includes(booking?.status || '')
   
-  const driverWs = useDriverLocation(String(id), !!(booking && isDriver && isTrackingSupported), load)
-  const riderWs = useRideTracking(String(id), !!(booking && isRider && isTrackingSupported), load)
+  const driverWs = useDriverLocation(String(id), !!(booking && isDriver && isChatSupported), load)
+  const riderWs = useRideTracking(String(id), !!(booking && isRider && isChatSupported), load)
 
   // Merge hook outputs based on role so the UI chat component works for both
   const chatMessages = isDriver ? driverWs.messages : riderWs.messages
@@ -167,7 +169,7 @@ export default function BookingDetailPage() {
       setReviewed(true)
       toast.success('Review submitted!')
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to submit review')
+      toast.error(extractErrorMessage(err, 'Failed to submit review'))
     } finally {
       setSubmitting(false)
     }
@@ -255,9 +257,22 @@ export default function BookingDetailPage() {
             <div className="w-0.5 h-8 bg-slate-200" />
             <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
           </div>
-          <div className="space-y-4">
-            <p className="font-medium text-slate-900 text-sm">{booking.origin_label}</p>
-            <p className="font-medium text-slate-900 text-sm">{booking.dest_label}</p>
+          <div className="space-y-4 flex-1">
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-1">Pickup</p>
+              <p className="font-medium text-slate-900 text-sm">{booking.origin_label}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-1">Dropoff</p>
+              <p className="font-medium text-slate-900 text-sm">{booking.dest_label}</p>
+            </div>
+            {booking.segment_coverage_pct && booking.segment_coverage_pct < 100 && (
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  <span className="font-semibold">Partial booking</span> — Covering {booking.segment_coverage_pct}% of the route
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -341,7 +356,7 @@ export default function BookingDetailPage() {
                     toast.success('Booking cancelled')
                     router.push('/dashboard')
                   } catch (err: any) {
-                    toast.error(err.response?.data?.error || 'Failed to cancel')
+                    toast.error(extractErrorMessage(err, 'Failed to cancel'))
                   } finally {
                     setActionLoading(false)
                   }
@@ -394,7 +409,66 @@ export default function BookingDetailPage() {
         </div>
       )}
 
-      {/* ── live tracking & chat ── */}
+      {/* ── unified chat block ── */}
+      {isChatSupported && (isRider || isDriver) && (
+        <div className="bg-white border rounded-xl p-5">
+          <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <span>💬 Chat with {isRider ? 'Driver' : 'Rider'}</span>
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+          </h2>
+          
+          <div className="bg-slate-50 rounded-lg py-3 border mb-3 flex flex-col gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-2 px-3 scrollbar-hide">
+              {isDriver 
+                ? ["Where are you?", "I'm at the pickup point", "Look for my car", "Okay, thanks!"].map((text) => (
+                    <button
+                      key={text} onClick={() => sendMessage(text)}
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-full hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all whitespace-nowrap"
+                    >{text}</button>
+                  ))
+                : ["Where are you?", "I'm at the exact pin", "Look for a person in a red shirt", "Okay, thanks!"].map((text) => (
+                    <button
+                      key={text} onClick={() => sendMessage(text)}
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-full hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all whitespace-nowrap"
+                    >{text}</button>
+                  ))
+              }
+            </div>
+
+            <div className="flex flex-col gap-2 p-3 h-48 overflow-y-auto bg-white border rounded-xl mx-3">
+              {chatMessages.length === 0 && (
+                <p className="text-xs text-center text-slate-400 py-4">No messages yet. Use quick replies above to communicate.</p>
+              )}
+              {chatMessages.map((msg: any, index: number) => {
+                const isMine = msg.from === (isRider ? 'rider' : 'driver')
+                return (
+                  <div key={index} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] px-3 py-2 text-sm ${isMine ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm' : 'bg-slate-200 text-slate-900 rounded-2xl rounded-bl-sm'}`}>
+                      {msg.text}
+                      <span className={`text-[10px] block mt-0.5 ${isMine ? 'text-blue-200 text-right' : 'text-slate-500'}`}>
+                        {isMine ? 'You' : (isRider ? 'Driver' : 'Rider')}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="flex gap-2 px-3">
+              <Input 
+                value={msgText} 
+                onChange={e => setMsgText(e.target.value)} 
+                placeholder={isDriver ? "Message rider..." : "Message driver..."} 
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat() }} 
+                className="h-9 text-sm" 
+              />
+              <Button size="sm" className="h-9" onClick={handleSendChat}>Send</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── live tracking map ── */}
       {rideIsActive && (isRider || isDriver) ? (
         <div className="bg-white border rounded-xl p-5 space-y-4">
           <div className="flex justify-between items-center mb-2">
@@ -405,45 +479,7 @@ export default function BookingDetailPage() {
           </div>
 
           {isRider && (
-            <>
-              <LiveMap driverLocation={driverLocation} isDriverOnline={isDriverOnline} />
-
-              <div className="mt-6 border-t pt-4">
-                <h3 className="font-medium text-sm text-slate-700 mb-3">Quick Chat with Driver</h3>
-                <div className="bg-slate-50 rounded-lg py-3 border mb-3 flex flex-col gap-2">
-                  <div className="flex gap-2 overflow-x-auto pb-2 px-3 scrollbar-hide">
-                    {["Where are you?", "I'm at the exact pin", "Look for a person in a red shirt", "Okay, thanks!"].map((text) => (
-                      <button
-                        key={text} onClick={() => sendMessage(text)}
-                        className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 rounded-full hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all whitespace-nowrap"
-                      >{text}</button>
-                    ))}
-                  </div>
-                  <div className="flex flex-col gap-2 p-3 h-48 overflow-y-auto bg-slate-50 border rounded-xl mx-3">
-                    {chatMessages.length === 0 && (
-                      <p className="text-xs text-center text-slate-400 py-4">No messages yet. Use quick replies above to communicate.</p>
-                    )}
-                    {chatMessages.map((msg: any, index: number) => {
-                      const isMine = msg.from === 'rider'
-                      return (
-                        <div key={index} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[75%] px-3 py-2 text-sm ${isMine ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm' : 'bg-slate-200 text-slate-900 rounded-2xl rounded-bl-sm'}`}>
-                            {msg.text}
-                            <span className={`text-[10px] block mt-0.5 ${isMine ? 'text-blue-200 text-right' : 'text-slate-500'}`}>
-                              {isMine ? 'You' : 'Driver'}
-                            </span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <div className="flex gap-2 px-3">
-                    <Input value={msgText} onChange={e => setMsgText(e.target.value)} placeholder="Message driver..." onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat() }} className="h-9 text-sm" />
-                    <Button size="sm" className="h-9" onClick={handleSendChat}>Send</Button>
-                  </div>
-                </div>
-              </div>
-            </>
+            <LiveMap driverLocation={driverLocation} isDriverOnline={isDriverOnline} />
           )}
         </div>
       ) : booking.status === 'confirmed' && booking.ride_status !== 'completed' ? (

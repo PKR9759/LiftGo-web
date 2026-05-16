@@ -5,6 +5,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function extractErrorMessage(error: unknown, fallback = 'Something went wrong') {
+  if (!error) return fallback
+  if (typeof error === 'string') return error
+
+  const err = error as Record<string, any>
+  const apiError = err.response?.data?.error
+  if (typeof apiError === 'string' && apiError.trim()) {
+    return apiError
+  }
+
+  const apiMessage = err.response?.data?.message
+  if (typeof apiMessage === 'string' && apiMessage.trim()) {
+    return apiMessage
+  }
+
+  if (typeof err.message === 'string' && err.message.trim()) {
+    return err.message
+  }
+
+  return fallback
+}
+
 export function haversineDistance(
   coords1: { lat: number; lng: number },
   coords2: { lat: number; lng: number }

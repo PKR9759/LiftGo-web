@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { getNearbyRides } from '@/lib/api'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import type { Ride, LatLng } from '@/types'
+import { toast } from 'sonner'
 import { format } from 'date-fns'
 
 const MapPicker = dynamic(
@@ -48,6 +49,8 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null)
+  const [originPoint, setOriginPoint] = useState<LatLng | null>(null)
+  const [destPoint, setDestPoint] = useState<LatLng | null>(null)
 
   const searchRef = useRef<(o: LatLng, d: LatLng) => void>(null)
 
@@ -114,6 +117,8 @@ export default function HomePage() {
     d: LatLng | null
   ) => {
     setSelectedRide(null)
+    setOriginPoint(o)
+    setDestPoint(d)
     if (o && d) {
       searchRef.current?.(o, d)
     }
@@ -156,7 +161,44 @@ export default function HomePage() {
 
         {/* left — map always visible, never toggled */}
         <div className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm text-slate-500">Set origin & destination</p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={async () => {
+                try {
+                  const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+                  })
+                  const loc: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude, label: '📍 Your location' }
+                  setOriginPoint(loc)
+                  // if we already have destination, search immediately
+                  if (destPoint) searchRef.current?.(loc, destPoint)
+                } catch (err: any) {
+                  if (err?.code === 1) toast.error('Location access denied. Enable location permission.')
+                  else toast.error('Could not get your location.')
+                }
+              }}>📍 Use my location (origin)</Button>
+              <Button size="sm" variant="outline" onClick={async () => {
+                try {
+                  const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+                  })
+                  const loc: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude, label: '📍 Your location' }
+                  setDestPoint(loc)
+                  if (originPoint) searchRef.current?.(originPoint, loc)
+                } catch (err: any) {
+                  if (err?.code === 1) toast.error('Location access denied. Enable location permission.')
+                  else toast.error('Could not get your location.')
+                }
+              }}>📍 Use my location (destination)</Button>
+            </div>
+          </div>
+
           <MapPicker
+            initialOrigin={originPoint}
+            initialDestination={destPoint}
             onChange={handleMapChange}
             height="420px"
           />
@@ -302,7 +344,24 @@ export default function HomePage() {
               )}
             </div>
             <div className="flex flex-col gap-2 min-w-35">
-              <Link href={`/rides/${selectedRide.id}`}>
+              <Link href={{
+                pathname: `/rides/${selectedRide.id}`,
+                query: {
+                  ...(originPoint ? {
+                    pickup_label: originPoint.label,
+                    pickup_lat: originPoint.lat.toString(),
+                    pickup_lng: originPoint.lng.toString(),
+                  } : {}),
+                  ...(destPoint ? {
+                    dropoff_label: destPoint.label,
+                    dropoff_lat: destPoint.lat.toString(),
+                    dropoff_lng: destPoint.lng.toString(),
+                  } : {}),
+                  ...(originPoint && destPoint ? {
+                    segment_price: getRideSegmentPricing(selectedRide).segmentPrice.toFixed(2)
+                  } : {}),
+                }
+              }}>
                 <Button variant="outline" className="w-full text-xs">View details</Button>
               </Link>
             </div>
@@ -347,21 +406,21 @@ function RideResult({ ride, selected, onClick }: { ride: Ride; selected: boolean
           <Badge variant="default" className="bg-green-600 text-[9px] h-4 px-1 leading-none text-white font-bold">LIVE</Badge>
         )}
       </div>
-      
+
       {(ride.pickup_distance_m! > 0 || ride.route_coverage_pct! > 0 || matchQuality) && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 mt-2">
-           {matchQuality && (
-               <span className={`font-semibold ${ride.match_score! > 4.0 ? 'text-green-600' : ride.match_score! >= 2.0 ? 'text-blue-600' : 'text-orange-500'}`}>
-                   {matchQuality}
-               </span>
-           )}
-           {ride.pickup_distance_m !== undefined && ride.pickup_distance_m > 0 && (
-               <span>📍 {ride.pickup_distance_m}m from your pickup</span>
-           )}
-           {ride.route_coverage_pct !== undefined && ride.route_coverage_pct > 0 && (
-               <span>🛣️ Covers {ride.route_coverage_pct}% of your journey</span>
-           )}
-           <span>💸 Save {formatRupee(pricing.savings)} per seat</span>
+          {matchQuality && (
+            <span className={`font-semibold ${ride.match_score! > 4.0 ? 'text-green-600' : ride.match_score! >= 2.0 ? 'text-blue-600' : 'text-orange-500'}`}>
+              {matchQuality}
+            </span>
+          )}
+          {ride.pickup_distance_m !== undefined && ride.pickup_distance_m > 0 && (
+            <span>📍 {ride.pickup_distance_m}m from your pickup</span>
+          )}
+          {ride.route_coverage_pct !== undefined && ride.route_coverage_pct > 0 && (
+            <span>🛣️ Covers {ride.route_coverage_pct}% of your journey</span>
+          )}
+          <span>💸 Save {formatRupee(pricing.savings)} per seat</span>
         </div>
       )}
     </div>

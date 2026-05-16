@@ -13,6 +13,7 @@ import {
   cancelRide,
 } from '@/lib/api'
 import { getUser } from '@/lib/auth'
+import { extractErrorMessage } from '@/lib/utils'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { toast } from 'sonner'
@@ -130,7 +131,7 @@ export default function DashboardPage() {
       )
       toast.success('Booking confirmed')
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to confirm')
+      toast.error(extractErrorMessage(err, 'Failed to confirm'))
     }
   }
 
@@ -145,7 +146,7 @@ export default function DashboardPage() {
       )
       toast.success('Booking cancelled')
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to cancel')
+      toast.error(extractErrorMessage(err, 'Failed to cancel'))
     }
   }
 
@@ -157,7 +158,7 @@ export default function DashboardPage() {
       )
       toast.success('Ride cancelled')
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to cancel ride')
+      toast.error(extractErrorMessage(err, 'Failed to cancel ride'))
     }
   }
 

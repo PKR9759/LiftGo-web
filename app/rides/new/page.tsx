@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createRide } from "@/lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { extractErrorMessage } from "@/lib/utils";
 import { toast } from "sonner";
 import type { LatLng } from "@/types";
 
@@ -114,7 +115,7 @@ export default function NewRidePage() {
       toast.success("Ride posted!");
       router.push(`/rides/${res.data.id}`);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Failed to post ride");
+      toast.error(extractErrorMessage(err, 'Failed to post ride'))
     } finally {
       setLoading(false);
     }
@@ -134,8 +135,38 @@ export default function NewRidePage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* map */}
         <div className="bg-white border rounded-xl p-5">
-          <h2 className="font-semibold text-slate-900 mb-4">Route</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-slate-900">Route</h2>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={async () => {
+                try {
+                  const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+                  })
+                  const loc: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude, label: '📍 Your location' }
+                  setOrigin(loc)
+                } catch (err: any) {
+                  if (err?.code === 1) toast.error('Location access denied. Enable location permission.')
+                  else toast.error('Could not get your location.')
+                }
+              }}>📍 Use my location (origin)</Button>
+              <Button size="sm" variant="outline" onClick={async () => {
+                try {
+                  const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+                  })
+                  const loc: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude, label: '📍 Your location' }
+                  setDestination(loc)
+                } catch (err: any) {
+                  if (err?.code === 1) toast.error('Location access denied. Enable location permission.')
+                  else toast.error('Could not get your location.')
+                }
+              }}>📍 Use my location (destination)</Button>
+            </div>
+          </div>
           <MapPicker
+            initialOrigin={origin}
+            initialDestination={destination}
             onChange={(o, d, rw, v, fetching) => {
               setOrigin(o);
               setDestination(d);

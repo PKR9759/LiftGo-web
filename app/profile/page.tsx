@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getMe, updateMe, getUserReviews } from '@/lib/api'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { extractErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { User, Review } from '@/types'
 
@@ -80,7 +81,7 @@ export default function ProfilePage() {
       setUser(res.data)
       toast.success('Profile updated')
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to update')
+      toast.error(extractErrorMessage(err, 'Failed to update'))
     } finally {
       setSaving(false)
     }

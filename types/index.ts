@@ -110,6 +110,8 @@ export interface CreateBookingRequest {
   seats: number
   pickup_lat: number
   pickup_lng: number
+  pickup_label?: string
   dropoff_lat: number
   dropoff_lng: number
+  dropoff_label?: string
 }

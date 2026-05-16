@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { getRide, getRideBookings, startRide, cancelRide, markPickedUp, markDropped, markNoShow, confirmBooking, cancelBooking, getRideStatusSummary } from '@/lib/api'
 import { getUser } from '@/lib/auth'
+import { extractErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Ride, Booking } from '@/types'
 import { format } from 'date-fns'
@@ -88,7 +89,7 @@ function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
         } catch (err: any) {
             if (action === 'pickup') {
                 if (err?.response?.status === 400) {
-                    toast.error(err.response.data?.error || 'Too far from pickup point')
+                    toast.error(extractErrorMessage(err, 'Too far from pickup point'))
                 } else if (err?.code === 1) {
                     toast.error('Location access denied. Enable location to pick up riders.')
                 } else if (err?.code === 3) {
@@ -97,7 +98,7 @@ function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
                     toast.error('Something went wrong. Please try again.')
                 }
             } else {
-                toast.error(err.response?.data?.error || 'Action failed')
+                toast.error(extractErrorMessage(err, 'Action failed'))
             }
         } finally {
             setActionLoading(false)
@@ -313,7 +314,7 @@ export default function ManageRidePage() {
             loadData()
             loadSummary()
         } catch (err: any) {
-            toast.error(err.response?.data?.error || 'Failed to start ride')
+            toast.error(extractErrorMessage(err, 'Failed to start ride'))
         } finally {
             setActionLoading(false)
         }
@@ -327,7 +328,7 @@ export default function ManageRidePage() {
             loadData()
             loadSummary()
         } catch (err: any) {
-            toast.error(err.response?.data?.error || 'Failed to cancel ride')
+            toast.error(extractErrorMessage(err, 'Failed to cancel ride'))
         } finally {
             setActionLoading(false)
         }

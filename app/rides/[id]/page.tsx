@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getRide, createBooking, getRideStatusSummary } from '@/lib/api'
 import { getUser } from '@/lib/auth'
+import { extractErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Ride } from '@/types'
 import { format } from 'date-fns'
@@ -42,21 +43,40 @@ export default function RideDetailPage() {
   const [summary, setSummary] = useState<any>(null)
   const [pickupLat, setPickupLat] = useState('')
   const [pickupLng, setPickupLng] = useState('')
+  const [pickupLabel, setPickupLabel] = useState('Your pickup location')
+  const [useCurrentLocation, setUseCurrentLocation] = useState(false)
   const [dropoffLat, setDropoffLat] = useState('')
   const [dropoffLng, setDropoffLng] = useState('')
+  const [dropoffLabel, setDropoffLabel] = useState('Your dropoff location')
   const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   const currentUser = getUser()
   const loggedIn = !!currentUser
+  const searchParams = useSearchParams()
+
+  // Read segment price directly from query params passed by liveboard
+  const segmentPriceParam = searchParams.get('segment_price')
+  const segmentPrice = segmentPriceParam ? Number(segmentPriceParam) : null
 
   const load = async () => {
     try {
+      const pLatParam = searchParams.get('pickup_lat')
+      const pLngParam = searchParams.get('pickup_lng')
+      const dLatParam = searchParams.get('dropoff_lat')
+      const dLngParam = searchParams.get('dropoff_lng')
+
       const res = await getRide(id)
+
       setRide(res.data)
-      setPickupLat(String(res.data.origin_lat))
-      setPickupLng(String(res.data.origin_lng))
-      setDropoffLat(String(res.data.dest_lat))
-      setDropoffLng(String(res.data.dest_lng))
+      const pickupLabelParam = searchParams.get('pickup_label')
+      const dropoffLabelParam = searchParams.get('dropoff_label')
+
+      setPickupLat(pLatParam ?? String(res.data.origin_lat))
+      setPickupLng(pLngParam ?? String(res.data.origin_lng))
+      setPickupLabel(pickupLabelParam ?? res.data.origin_label)
+      setDropoffLat(dLatParam ?? String(res.data.dest_lat))
+      setDropoffLng(dLngParam ?? String(res.data.dest_lng))
+      setDropoffLabel(dropoffLabelParam ?? res.data.dest_label)
 
       if (loggedIn) {
         try {
@@ -90,7 +110,7 @@ export default function RideDetailPage() {
       toast.error('Please enter a valid seat count')
       return
     }
-    if (seats > ride.available_seats) {
+    if (!segmentPrice && seats > ride.available_seats) {
       toast.error(`Only ${ride.available_seats} seat(s) are available`)
       return
     }
@@ -112,13 +132,14 @@ export default function RideDetailPage() {
         seats,
         pickup_lat: pLat,
         pickup_lng: pLng,
+        pickup_label: pickupLabel,
         dropoff_lat: dLat,
         dropoff_lng: dLng,
+        dropoff_label: dropoffLabel,
       })
-      toast.success('Seat booked!')
       router.push(`/bookings/${res.data.id}`)
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Booking failed')
+      toast.error(extractErrorMessage(err, 'Booking failed'))
     } finally {
       setBooking(false)
     }
@@ -147,7 +168,10 @@ export default function RideDetailPage() {
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-1 flex-wrap">
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 wrap-break-word">
-            {ride.origin_label} → {ride.dest_label}
+            {segmentPrice && segmentPrice < ride.price_per_seat
+              ? `${pickupLabel.split(',')[0]} → ${dropoffLabel.split(',')[0]}`
+              : `${ride.origin_label.split(',')[0]} → ${ride.dest_label.split(',')[0]}`
+            }
           </h1>
           <Badge variant={rb.variant} className={`${rb.className || ''} ${rb.pulse ? 'animate-pulse' : ''}`}>
             {rb.pulse && <span className="w-1.5 h-1.5 rounded-full bg-white mr-1.5 inline-block" />}
@@ -232,14 +256,20 @@ export default function RideDetailPage() {
           <div className="bg-white border rounded-xl p-5 sticky top-24">
 
             <p className="text-2xl font-bold text-slate-900 mb-1">
-              ₹{ride.price_per_seat}
+              ₹{segmentPrice ?? ride.price_per_seat}
             </p>
-            <p className="text-xs text-slate-400 mb-4">per seat</p>
+            <p className="text-xs text-slate-400 mb-4">
+              {segmentPrice && segmentPrice < ride.price_per_seat
+                ? 'estimated segment fare'
+                : 'per seat'}
+            </p>
 
             <div className="space-y-1 mb-4">
               <p className="text-sm text-slate-600 font-medium">
-                {ride.available_seats === 0
+                {ride.available_seats === 0 && ride.status === 'full' && !segmentPrice
                   ? <span className="text-red-600">Fully booked</span>
+                  : ride.available_seats === 0 && ride.status === 'full'
+                  ? <span className="text-amber-600">Seats may be available on your segment</span>
                   : `${ride.available_seats} of ${ride.total_seats} seats available`
                 }
               </p>
@@ -276,7 +306,7 @@ export default function RideDetailPage() {
                     type="number"
                     min={1}
                     max={ride.available_seats}
-                    disabled={ride.available_seats === 0}
+                    disabled={ride.available_seats === 0 && !segmentPrice}
                     value={seats}
                     onChange={e => {
                       const raw = e.target.value
@@ -297,34 +327,36 @@ export default function RideDetailPage() {
                     }}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <div>
-                    <Label className="text-xs text-slate-500 mb-1 block">Pickup lat</Label>
-                    <Input type="number" value={pickupLat} onChange={(e) => setPickupLat(e.target.value)} step="any" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-slate-500 mb-1 block">Pickup lng</Label>
-                    <Input type="number" value={pickupLng} onChange={(e) => setPickupLng(e.target.value)} step="any" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-slate-500 mb-1 block">Dropoff lat</Label>
-                    <Input type="number" value={dropoffLat} onChange={(e) => setDropoffLat(e.target.value)} step="any" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-slate-500 mb-1 block">Dropoff lng</Label>
-                    <Input type="number" value={dropoffLng} onChange={(e) => setDropoffLng(e.target.value)} step="any" />
+
+                {/* Pickup & Dropoff labels (read-only on ride details) */}
+                <div className="mb-3">
+                  <Label className="text-xs text-slate-500 mb-1 block">Pickup</Label>
+                  <div className="border rounded-lg p-3 bg-slate-50">
+                    <p className="text-sm font-medium text-slate-900">
+                      {pickupLabel || ride.origin_label}
+                    </p>
                   </div>
                 </div>
+
+                <div className="mb-3">
+                  <Label className="text-xs text-slate-500 mb-1 block">Dropoff</Label>
+                  <div className="border rounded-lg p-3 bg-slate-50">
+                    <p className="text-sm font-medium text-slate-900">
+                      {dropoffLabel || ride.dest_label}
+                    </p>
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between text-sm mb-4">
                   <span className="text-slate-500">Total</span>
                   <span className="font-semibold text-lg">
-                    ₹{(ride.price_per_seat * seats).toFixed(0)}
+                    ₹{((segmentPrice ?? ride.price_per_seat) * seats).toFixed(2).replace(/\.00$/, '')}
                   </span>
                 </div>
                 <Button
                   className="w-full bg-blue-600 hover:bg-blue-700"
                   onClick={handleBook}
-                  disabled={booking || seats < 1 || seats > ride.available_seats || ride.available_seats === 0}
+                  disabled={booking || seats < 1 || (!segmentPrice && seats > ride.available_seats) || (ride.available_seats === 0 && !segmentPrice) || !pickupLat || !pickupLng || !dropoffLat || !dropoffLng}
                 >
                   {booking ? 'Booking...' : loggedIn ? 'Request seat' : 'Log in to book'}
                 </Button>

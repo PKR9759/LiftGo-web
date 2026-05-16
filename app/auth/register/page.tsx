@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { register as registerUser } from '@/lib/api'
 import { setUser } from '@/lib/auth'
 import { useGuestOnly } from '@/hooks/useRequireAuth'
+import { extractErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 
 const schema = z.object({
@@ -62,7 +63,9 @@ export default function RegisterPage() {
       router.push('/liveboard')
       router.refresh()
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Registration failed')
+      toast.error(
+        extractErrorMessage(err, 'Registration failed. Please try again.')
+      )
     } finally {
       setLoading(false)
     }
