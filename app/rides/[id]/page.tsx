@@ -289,9 +289,17 @@ export default function RideDetailPage() {
                 </Button>
               </div>
             ) : isDriver ? (
-              <p className="text-xs text-slate-400 text-center py-2 bg-slate-50 rounded-lg border border-dashed">
-                This is your ride
-              </p>
+              <div className="space-y-3">
+                <p className="text-xs text-slate-500 text-center py-2 bg-slate-50 rounded-lg border border-dashed">
+                  This is your ride. You have {ride.total_seats - ride.available_seats} seat(s) booked.
+                </p>
+                <Button
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white"
+                  onClick={() => router.push(`/rides/${ride.id}/manage`)}
+                >
+                  Manage Ride & View Bookings
+                </Button>
+              </div>
             ) : !['scheduled', 'active', 'full'].includes(ride.status) ? (
               <p className="text-xs text-slate-400 text-center italic">
                 This ride is {ride.status}

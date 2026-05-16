@@ -127,6 +127,7 @@ function BookingManager({ booking, onUpdate, driverPos, rideStatus }: any) {
                     </p>
                     <p className="text-xs text-slate-500 mt-1">From: {booking.origin_label}</p>
                     <p className="text-xs text-slate-500">To: {booking.dest_label}</p>
+                    <p className="text-xs font-medium text-emerald-600 mt-0.5">Segment Price: ${Number(booking.total_price).toFixed(2)}</p>
                     {!isTerminal && booking.status !== 'picked_up' && (
                         <span className="text-xs font-semibold mt-1 inline-block text-indigo-600">
                             {distance !== null
