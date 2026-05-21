@@ -8,14 +8,14 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getBooking, createReview, cancelBooking, markRiderReady, getRideStatusSummary } from '@/lib/api'
+import { getBooking, createReview, cancelBooking, markRiderReady, getRideStatusSummary, getRide } from '@/lib/api'
 import { getUser } from '@/lib/auth'
 import { extractErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useDriverLocation } from '@/hooks/useDriverLocation'
 import { useRideTracking } from '@/hooks/useRideTracking'
 import LiveMap from '@/components/map/LiveMap'
-import type { Booking } from '@/types'
+import type { Booking, Ride } from '@/types'
 import { format } from 'date-fns'
 
 // Fix 7 — consistent booking badge colors
@@ -81,6 +81,7 @@ export default function BookingDetailPage() {
   const currentUser = getUser()
 
   const [booking, setBooking] = useState<Booking | null>(null)
+  const [ride, setRide] = useState<Ride | null>(null)
   const [loading, setLoading] = useState(true)
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState('')
@@ -95,6 +96,12 @@ export default function BookingDetailPage() {
     try {
       const res = await getBooking(id)
       setBooking(res.data)
+      
+      // Fetch ride to get route coordinates
+      if (res.data.ride_id) {
+        const rideRes = await getRide(res.data.ride_id)
+        setRide(rideRes.data)
+      }
     } catch {
       toast.error('Booking not found')
     } finally {
@@ -479,7 +486,47 @@ export default function BookingDetailPage() {
           </div>
 
           {isRider && (
-            <LiveMap driverLocation={driverLocation} isDriverOnline={isDriverOnline} />
+            <LiveMap 
+              driverLocation={driverLocation} 
+              isDriverOnline={isDriverOnline}
+              pickupLocation={{
+                lat: booking.rider_origin_lat || 0,
+                lng: booking.rider_origin_lng || 0,
+                label: booking.origin_label
+              }}
+              dropoffLocation={{
+                lat: booking.rider_dest_lat || 0,
+                lng: booking.rider_dest_lng || 0,
+                label: booking.dest_label
+              }}
+              routeCoordinates={ride?.route_coordinates}
+              userRole="rider"
+              highlightFractionRange={
+                booking.status === 'picked_up' 
+                  ? [booking.pickup_fraction || 0, booking.dropoff_fraction || 1] 
+                  : [0, booking.pickup_fraction || 0] // Before pickup, show path to them
+              }
+            />
+          )}
+
+          {isDriver && (
+            <LiveMap 
+              driverLocation={null}
+              isDriverOnline={true}
+              pickupLocation={{
+                lat: booking.rider_origin_lat || 0,
+                lng: booking.rider_origin_lng || 0,
+                label: booking.origin_label
+              }}
+              dropoffLocation={{
+                lat: booking.rider_dest_lat || 0,
+                lng: booking.rider_dest_lng || 0,
+                label: booking.dest_label
+              }}
+              routeCoordinates={ride?.route_coordinates}
+              userRole="driver"
+              highlightFractionRange={[0, booking.pickup_fraction || 0]}
+            />
           )}
         </div>
       ) : booking.status === 'confirmed' && booking.ride_status !== 'completed' ? (

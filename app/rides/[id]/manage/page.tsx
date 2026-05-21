@@ -340,6 +340,28 @@ export default function ManageRidePage() {
 
     const rb = rideBadgeStyle[ride.status] || { variant: 'secondary' as const }
 
+    // Find the next point of interest for the driver
+    const getNextStop = () => {
+        if (!bookings.length) return null
+        
+        // Find all "active" points (pickups for confirmed/ready, dropoffs for picked_up)
+        const points = []
+        for (const b of bookings) {
+            if (['confirmed', 'rider_ready'].includes(b.status)) {
+                points.push({ type: 'pickup', fraction: b.pickup_fraction || 0, label: b.origin_label })
+            } else if (b.status === 'picked_up') {
+                points.push({ type: 'dropoff', fraction: b.dropoff_fraction || 1, label: b.dest_label })
+            }
+        }
+        
+        if (!points.length) return null
+        
+        // Sort by fraction and pick the first one (lowest fraction)
+        return points.sort((a, b) => a.fraction - b.fraction)[0]
+    }
+
+    const nextStop = getNextStop()
+
     return (
         <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
@@ -419,6 +441,23 @@ export default function ManageRidePage() {
                 <LiveMap
                     driverLocation={driverPos}
                     isDriverOnline={true}
+                    pickupLocation={nextStop ? {
+                        lat: nextStop.type === 'pickup' 
+                            ? (bookings.find(b => b.pickup_fraction === nextStop.fraction)?.rider_origin_lat || ride.origin_lat)
+                            : (bookings.find(b => b.dropoff_fraction === nextStop.fraction)?.rider_dest_lat || ride.dest_lat),
+                        lng: nextStop.type === 'pickup'
+                            ? (bookings.find(b => b.pickup_fraction === nextStop.fraction)?.rider_origin_lng || ride.origin_lng)
+                            : (bookings.find(b => b.dropoff_fraction === nextStop.fraction)?.rider_dest_lng || ride.dest_lng),
+                        label: nextStop.label
+                    } : undefined}
+                    dropoffLocation={{
+                        lat: ride.dest_lat,
+                        lng: ride.dest_lng,
+                        label: ride.dest_label
+                    }}
+                    routeCoordinates={ride.route_coordinates}
+                    userRole="driver"
+                    highlightFractionRange={nextStop ? [0, nextStop.fraction] : undefined}
                     riderMarkers={bookings
                         ?.filter(b => b.rider_ready_lat && b.rider_ready_lng)
                         .map(b => ({
